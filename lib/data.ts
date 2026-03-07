@@ -1,5 +1,5 @@
 import { createServerClient } from './pocketbase-server';
-import { Sprint, Class, Link, Assignment, User, Delivery, Review } from '@/types';
+import { Class, Link, Assignment, User, Delivery } from '@/types';
 import { unstable_cache } from 'next/cache';
 import { cache } from 'react';
 import PocketBase from 'pocketbase';
@@ -21,19 +21,6 @@ const createClientWithToken = (token: string | undefined) => {
 };
 
 // Cached fetchers using unstable_cache (Data Cache)
-// Caches results per user (token) for a short duration to prevent 429 errors
-const getSprintsCached = unstable_cache(
-    async (token: string | undefined) => {
-        const pb = createClientWithToken(token);
-        const result = await pb.collection('sprints').getList<Sprint>(1, 50, {
-            sort: 'created',
-        });
-        return result.items;
-    },
-    ['sprints-list'],
-    { revalidate: 30, tags: ['sprints'] }
-);
-
 const getUsersCached = unstable_cache(
     async (token: string | undefined) => {
         const pb = createClientWithToken(token);
@@ -59,45 +46,6 @@ const getStudentsCached = unstable_cache(
 
 // Exported functions with request memoization (React.cache)
 
-export const getReviews = cache(async (sprintId: string) => {
-  const pb = await createServerClient();
-  try {
-    const records = await pb.collection('reviews').getFullList<Review>({
-      filter: `sprint = "${sprintId}"`,
-      sort: 'startTime',
-      expand: 'teacher,student',
-    });
-    return records;
-  } catch (error) {
-    console.error('Error fetching reviews:', error);
-    return [];
-  }
-});
-
-export const getUserReview = cache(async (sprintId: string, userId: string) => {
-  const pb = await createServerClient();
-  try {
-    const record = await pb.collection('reviews').getFirstListItem<Review>(
-      `sprint = "${sprintId}" && student = "${userId}"`,
-      { expand: 'teacher,student' }
-    );
-    return record;
-  } catch (error) {
-    return null;
-  }
-});
-
-export const getSprints = cache(async () => {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('pb_auth')?.value;
-    try {
-        return await getSprintsCached(token);
-    } catch (error) {
-        console.error('Error fetching sprints:', error);
-        throw error;
-    }
-});
-
 export const getUsers = cache(async () => {
     const cookieStore = await cookies();
     const token = cookieStore.get('pb_auth')?.value;
@@ -110,33 +58,10 @@ export const getStudents = cache(async () => {
     return getStudentsCached(token);
 });
 
-export const getSprint = cache(async (id: string) => {
-  const pb = await createServerClient();
-  try {
-    const record = await pb.collection('sprints').getOne<Sprint>(id, {
-        expand: 'classes',
-    });
-    return record;
-  } catch (error) {
-    console.error('Error fetching sprint:', error);
-    return null;
-  }
-});
-
 export async function getAllClasses() {
     const pb = await createServerClient();
     const records = await pb.collection('classes').getFullList<Class>({
-        sort: 'created',
-        expand: 'sprint',
-    });
-    return records;
-}
-
-export async function getClasses(sprintId: string) {
-    const pb = await createServerClient();
-    const records = await pb.collection('classes').getFullList<Class>({
-        filter: `sprint = "${sprintId}"`,
-        sort: 'created',
+        sort: '-date', // Ordenar por fecha descendente
     });
     return records;
 }
@@ -150,17 +75,7 @@ export async function getClass(id: string) {
 export async function getAllAssignments() {
   const pb = await createServerClient();
   const records = await pb.collection('assignments').getFullList<Assignment>({
-      sort: 'created',
-      expand: 'sprint',
-  });
-  return records;
-}
-
-export async function getAssignments(sprintId: string) {
-  const pb = await createServerClient();
-  const records = await pb.collection('assignments').getFullList<Assignment>({
-      filter: `sprint = "${sprintId}"`,
-      sort: 'created',
+      sort: '-created', // Ordenar por creación descendente
   });
   return records;
 }

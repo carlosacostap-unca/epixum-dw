@@ -23,7 +23,7 @@ Para que la aplicación funcione correctamente, necesitas crear las siguientes c
 
 Para que el rol "Docente" pueda gestionar el contenido, debes configurar las siguientes reglas en PocketBase:
 
-**Collections: `sprints`, `classes`, `assignments`, `links`**
+**Collections: `classes`, `assignments`, `links`**
 
 - **List/View Rule**: `""` (Público o accesible para todos los autenticados, según prefieras. Si es solo estudiantes/docentes: `@request.auth.id != ""`)
 - **Create/Update/Delete Rule**: `@request.auth.role = "docente" || @request.auth.role = "admin"`
@@ -41,34 +41,23 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
 
 1.  Ve a la colección `users` > Edit Collection > Add Field > Select.
 
-## 2. Colección: `sprints`
-- **Name**: `sprints`
-- **Type**: `Base`
-- **Fields**:
-    - `title`: Text (Required)
-    - `description`: Text
-    - `startDate`: Date
-    - `endDate`: Date
-    - `course`: Relation (Single) -> Collection: `courses` (Opcional si solo hay un curso)
-
-## 3. Colección: `classes`
+## 2. Colección: `classes`
 - **Name**: `classes`
 - **Type**: `Base`
 - **Fields**:
     - `title`: Text (Required)
     - `description`: Text
     - `date`: Date
-    - `sprint`: Relation (Single, Required) -> Collection: `sprints`
 
-## 4. Colección: `assignments` (Trabajos Prácticos)
+## 3. Colección: `assignments` (Trabajos Prácticos)
 - **Name**: `assignments`
 - **Type**: `Base`
 - **Fields**:
     - `title`: Text (Required)
     - `description`: Editor (Rich Text)
-    - `sprint`: Relation (Single, Required) -> Collection: `sprints`
+    - `dueDate`: Date
 
-## 5. Colección: `links`
+## 4. Colección: `links`
 - **Name**: `links`
 - **Type**: `Base`
 - **Fields**:
@@ -77,7 +66,7 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - `class`: Relation (Single, Optional) -> Collection: `classes`
     - `assignment`: Relation (Single, Optional) -> Collection: `assignments`
 
-## 6. Colección: `deliveries` (Entregas de TP)
+## 5. Colección: `deliveries` (Entregas de TP)
 - **Name**: `deliveries`
 - **Type**: `Base`
 - **Fields**:
@@ -94,7 +83,7 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
         - *Nota*: Estudiantes pueden modificar su entrega.
     - **Delete Rule**: `student = @request.auth.id || @request.auth.role = "admin"`
 
-## 7. Colección: `teams`
+## 6. Colección: `teams`
 - **Name**: `teams`
 - **Type**: `Base`
 - **Fields**:
@@ -148,6 +137,5 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
 ## Datos de Ejemplo
 Una vez creadas las colecciones y configuradas las reglas, puedes añadir algunos registros de prueba:
 
-1. Crea un **Sprint**: "Fundamentos de Node.js"
-2. Crea una **Clase**: "Instalación y configuración" (sprint: [ID del sprint anterior])
-3. Crea un **Link**: "Video de instalación" (url: https://youtube.com/..., type: video, class: [ID de la clase anterior])
+1. Crea una **Clase**: "Instalación y configuración"
+2. Crea un **Link**: "Video de instalación" (url: https://youtube.com/..., class: [ID de la clase anterior])

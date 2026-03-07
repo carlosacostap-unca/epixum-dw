@@ -33,7 +33,7 @@ export default function AssignmentDetailsManagement({ user, assignment, links, i
   return (
     <>
       <div className="mb-8">
-          <Link href={`/sprints/${assignment.sprint}`} className="text-blue-500 hover:underline inline-block">&larr; Volver al Sprint</Link>
+          <Link href="/assignments" className="text-blue-500 hover:underline inline-block">&larr; Volver a Trabajos Prácticos</Link>
       </div>
 
       <header className="mb-12 relative group">
@@ -131,7 +131,7 @@ export default function AssignmentDetailsManagement({ user, assignment, links, i
       {/* Modals */}
       {isEditingAssignment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <AssignmentForm sprintId={assignment.sprint} assignment={assignment} onClose={() => setIsEditingAssignment(false)} />
+          <AssignmentForm assignment={assignment} onClose={() => setIsEditingAssignment(false)} />
         </div>
       )}
 

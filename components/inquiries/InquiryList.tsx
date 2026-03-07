@@ -77,7 +77,7 @@ export default function InquiryList({ inquiries, currentUser, context, showSearc
           <input
             type="text"
             className="block w-full pl-10 pr-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-md leading-5 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition duration-150 ease-in-out"
-            placeholder="Buscar por título, descripción, autor, clase, sprint..."
+            placeholder="Buscar por título, descripción, autor, clase, trabajo práctico..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />

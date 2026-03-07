@@ -1,5 +1,5 @@
-import { getSprints } from "@/lib/data";
-import { Sprint } from "@/types";
+import { getAllClasses } from "@/lib/data";
+import { Class } from "@/types";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/pocketbase-server";
 import FormattedDate from "@/components/FormattedDate";
@@ -23,20 +23,20 @@ export default async function Home() {
             </header>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto mt-12">
-                <Link href="/sprints" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-blue-500 hover:shadow-md transition-all group">
+                <Link href="/classes" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-blue-500 hover:shadow-md transition-all group">
                     <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
                     </div>
-                    <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Mis Sprints</h2>
-                    <p className="text-zinc-500 dark:text-zinc-400">Accede a tus tareas, entregas y progresos del curso.</p>
+                    <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Clases</h2>
+                    <p className="text-zinc-500 dark:text-zinc-400">Accede a las clases y materiales del curso.</p>
                 </Link>
                 
-                <Link href="/reviews" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-green-500 hover:shadow-md transition-all group">
+                <Link href="/assignments" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-green-500 hover:shadow-md transition-all group">
                     <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
                     </div>
-                    <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Revisiones</h2>
-                    <p className="text-zinc-500 dark:text-zinc-400">Reserva turnos de revisión con tus docentes.</p>
+                    <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Trabajos Prácticos</h2>
+                    <p className="text-zinc-500 dark:text-zinc-400">Entrega tus tareas y visualiza tus calificaciones.</p>
                 </Link>
 
                 <Link href="/inquiries" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-orange-500 hover:shadow-md transition-all group">
@@ -60,25 +60,25 @@ export default async function Home() {
               Panel Docente
               </h1>
               <p className="text-xl text-zinc-500 dark:text-zinc-400">
-              Gestiona el curso y los sprints.
+              Gestiona el curso, las clases y los trabajos prácticos.
               </p>
           </header>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto mt-12">
-              <Link href="/sprints" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-blue-500 hover:shadow-md transition-all group">
+              <Link href="/classes" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-blue-500 hover:shadow-md transition-all group">
                   <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
                   </div>
-                  <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Gestionar Sprints</h2>
-                  <p className="text-zinc-500 dark:text-zinc-400">Crea, edita y administra los sprints y entregas del curso.</p>
+                  <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Gestionar Clases</h2>
+                  <p className="text-zinc-500 dark:text-zinc-400">Crea, edita y administra las clases del curso.</p>
               </Link>
               
-              <Link href="/reviews" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-green-500 hover:shadow-md transition-all group">
+              <Link href="/assignments" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-green-500 hover:shadow-md transition-all group">
                   <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
                   </div>
-                  <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Revisiones</h2>
-                  <p className="text-zinc-500 dark:text-zinc-400">Gestiona los turnos de revisión para los estudiantes.</p>
+                  <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Gestionar Trabajos</h2>
+                  <p className="text-zinc-500 dark:text-zinc-400">Crea y administra los trabajos prácticos.</p>
               </Link>
 
               <Link href="/inquiries" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-orange-500 hover:shadow-md transition-all group">
@@ -94,64 +94,66 @@ export default async function Home() {
   }
 
   // 3. Guest View
-  let sprints: Sprint[] = [];
+  let classes: Class[] = [];
   let error = null;
 
   try {
-    sprints = await getSprints();
+    classes = await getAllClasses();
   } catch (e) {
-    console.error("Error fetching sprints:", e);
-    error = "No se pudieron cargar los sprints. Asegúrate de que la colección 'sprints' exista y sea pública.";
+    console.error("Failed to fetch classes for guest view", e);
+    error = "No se pudieron cargar las clases.";
   }
 
   return (
     <div className="container mx-auto p-8 min-h-screen">
       <header className="mb-12 text-center">
-        <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl mb-4">
+          <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl mb-4">
           Curso de Node.js
-        </h1>
-        <p className="text-xl text-zinc-500 dark:text-zinc-400">
-          Domina el backend con Node.js, paso a paso.
-        </p>
+          </h1>
+          <p className="text-xl text-zinc-500 dark:text-zinc-400">
+          Inicia sesión para acceder a todo el contenido.
+          </p>
       </header>
 
       {error ? (
-        <div className="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 dark:bg-gray-800 dark:text-red-400" role="alert">
-          <span className="font-medium">Error:</span> {error}
-        </div>
-      ) : sprints.length === 0 ? (
-        <div className="text-center py-10">
-             <p className="text-xl text-zinc-500">No hay sprints disponibles todavía.</p>
-        </div>
+          <div className="text-center text-red-500 p-4 bg-red-50 rounded-lg">
+              {error}
+          </div>
       ) : (
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {sprints.map((sprint) => (
-                  <Link 
-                    href={`/sprints/${sprint.id}`} 
-                    key={sprint.id} 
-                    className="group block p-6 bg-white dark:bg-zinc-900 rounded-xl shadow-sm hover:shadow-md transition-all border border-zinc-200 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700"
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="px-3 py-1 text-xs font-medium text-blue-600 bg-blue-100 rounded-full dark:bg-blue-900 dark:text-blue-200">
-                        Sprint
-                      </span>
-                      {(sprint.startDate || sprint.endDate) && (
-                        <span className="text-xs text-zinc-500 dark:text-zinc-400 flex gap-1">
-                          {sprint.startDate && <FormattedDate date={sprint.startDate} />} 
-                          {sprint.startDate && sprint.endDate && " - "}
-                          {sprint.endDate && <FormattedDate date={sprint.endDate} />}
-                        </span>
+          <div className="space-y-12">
+              <section>
+                  <h2 className="text-2xl font-bold mb-6 text-zinc-900 dark:text-zinc-100 border-b border-zinc-200 dark:border-zinc-800 pb-2">
+                      Programa de Clases
+                  </h2>
+                  <div className="grid gap-4">
+                      {classes.length === 0 ? (
+                          <p className="text-zinc-500">No hay clases visibles públicamente.</p>
+                      ) : (
+                          classes.map((cls) => (
+                              <div key={cls.id} className="p-6 bg-white dark:bg-zinc-900 rounded-xl shadow-sm border border-zinc-200 dark:border-zinc-800 opacity-75">
+                                  <div className="flex justify-between items-start">
+                                      <div>
+                                          <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                                              {cls.title}
+                                          </h3>
+                                          <div className="flex items-center gap-2 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                              {cls.date ? <FormattedDate date={cls.date} /> : <span>Fecha por definir</span>}
+                                          </div>
+                                      </div>
+                                      <span className="px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                                          Clase
+                                      </span>
+                                  </div>
+                                  <p className="mt-4 text-zinc-600 dark:text-zinc-400 line-clamp-2">
+                                      {cls.description}
+                                  </p>
+                              </div>
+                          ))
                       )}
-                    </div>
-                    <h2 className="text-2xl font-bold mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      {sprint.title}
-                    </h2>
-                    <p className="text-zinc-600 dark:text-zinc-400 line-clamp-3">
-                      {sprint.description}
-                    </p>
-                  </Link>
-                ))}
-              </div>
+                  </div>
+              </section>
+          </div>
       )}
     </div>
   );

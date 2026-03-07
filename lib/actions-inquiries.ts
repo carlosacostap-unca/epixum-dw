@@ -37,13 +37,6 @@ export async function getInquiries(filter?: { classId?: string; assignmentId?: s
         `author.email ~ "${searchTerm}"`,
         `class.title ~ "${searchTerm}"`,
         `assignment.title ~ "${searchTerm}"`,
-        // Intentamos buscar en sprint a través de class/assignment si es posible (depende de configuración de PB y profundidad de expand)
-        // Nota: PB no siempre permite filtrar relaciones anidadas profundas sin expand explícito o configuración.
-        // Pero 'class.sprint' es solo un nivel de relación desde class.
-        // Sin embargo, desde inquiry es 'class.sprint.title' (2 niveles).
-        // PocketBase permite filtrar relaciones de N niveles.
-        `class.sprint.title ~ "${searchTerm}"`,
-        `assignment.sprint.title ~ "${searchTerm}"`,
       ];
 
       if (inquiryIdsFromResponses.length > 0) {

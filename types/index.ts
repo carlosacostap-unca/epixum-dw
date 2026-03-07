@@ -31,7 +31,6 @@ export interface Link extends BaseModel {
 export interface Class extends BaseModel {
   title: string;
   description: string;
-  sprint: string; // Relation to Sprint ID
   date: string;
   // Expanding relations
   expand?: {
@@ -39,23 +38,10 @@ export interface Class extends BaseModel {
   };
 }
 
-export interface Sprint extends BaseModel {
-  title: string;
-  description: string;
-  course: string; // Relation to Course ID (if multiple courses)
-  startDate: string;
-  endDate: string;
-  // Expanding relations
-  expand?: {
-    classes?: Class[];
-    assignments?: Assignment[];
-  };
-}
-
 export interface Assignment extends BaseModel {
   title: string;
   description: string;
-  sprint: string; // Relation to Sprint ID
+  dueDate?: string; // Adding dueDate as it might be useful without sprints
   // Expanding relations
   expand?: {
     links?: Link[];
@@ -75,25 +61,6 @@ export interface Delivery extends BaseModel {
 export interface Course extends BaseModel {
   title: string;
   description: string;
-  // Expanding relations
-  expand?: {
-    sprints?: Sprint[];
-  };
-}
-
-export interface Review extends BaseModel {
-  sprint: string; // Relation to Sprint ID
-  teacher: string; // Relation to User ID (teacher)
-  student?: string; // Relation to User ID (student), optional (null if available)
-  startTime: string; // ISO Date string
-  endTime: string; // ISO Date string
-  private_note?: string; // Note only for teachers
-  public_note?: string;  // Feedback visible to the student
-  expand?: {
-    sprint?: Sprint;
-    teacher?: User;
-    student?: User;
-  };
 }
 
 export interface Inquiry extends BaseModel {

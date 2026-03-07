@@ -8,11 +8,10 @@ import RichTextEditor from "./RichTextEditor";
 
 interface AssignmentFormProps {
   assignment?: Assignment;
-  sprintId: string;
   onClose?: () => void;
 }
 
-export default function AssignmentForm({ assignment, sprintId, onClose }: AssignmentFormProps) {
+export default function AssignmentForm({ assignment, onClose }: AssignmentFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -27,8 +26,7 @@ export default function AssignmentForm({ assignment, sprintId, onClose }: Assign
 
       let result;
       if (assignment) {
-        // Append sprintId for revalidation
-        formData.append("sprintId", sprintId);
+        // Update assignment
         result = await updateAssignment(assignment.id, formData);
       } else {
         result = await createAssignment(formData);
@@ -60,7 +58,6 @@ export default function AssignmentForm({ assignment, sprintId, onClose }: Assign
       )}
 
       <form action={handleSubmit} className="space-y-4">
-        <input type="hidden" name="sprintId" value={sprintId} />
         
         <div>
           <label htmlFor="title" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">

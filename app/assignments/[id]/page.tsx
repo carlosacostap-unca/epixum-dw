@@ -50,7 +50,7 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="container mx-auto p-8 min-h-screen">
-      <Link href={`/sprints/${assignment.sprint}`} className="text-blue-500 hover:underline mb-8 inline-block">&larr; Volver al Sprint</Link>
+      <Link href="/assignments" className="text-blue-500 hover:underline mb-8 inline-block">&larr; Volver a Trabajos Prácticos</Link>
       
       <header className="mb-12">
         <div className="flex items-center gap-4 mb-2">

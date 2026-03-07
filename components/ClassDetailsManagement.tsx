@@ -34,7 +34,7 @@ export default function ClassDetailsManagement({ user, classData, links, inquiri
   return (
     <>
       <div className="mb-8">
-          <Link href={`/sprints/${classData.sprint}`} className="text-blue-500 hover:underline inline-block">&larr; Volver al Sprint</Link>
+          <Link href="/classes" className="text-blue-500 hover:underline inline-block">&larr; Volver a Clases</Link>
       </div>
 
       <header className="mb-12 relative group">
@@ -131,7 +131,7 @@ export default function ClassDetailsManagement({ user, classData, links, inquiri
       {/* Modals */}
       {isEditingClass && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-          <ClassForm sprintId={classData.sprint} clase={classData} onClose={() => setIsEditingClass(false)} />
+          <ClassForm clase={classData} onClose={() => setIsEditingClass(false)} />
         </div>
       )}
 

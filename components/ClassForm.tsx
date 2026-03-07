@@ -7,11 +7,10 @@ import { useState } from "react";
 
 interface ClassFormProps {
   clase?: Class;
-  sprintId: string;
   onClose?: () => void;
 }
 
-export default function ClassForm({ clase, sprintId, onClose }: ClassFormProps) {
+export default function ClassForm({ clase, onClose }: ClassFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -22,8 +21,7 @@ export default function ClassForm({ clase, sprintId, onClose }: ClassFormProps) 
     try {
       let result;
       if (clase) {
-        // Append sprintId for revalidation
-        formData.append("sprintId", sprintId);
+        // Update class
         result = await updateClass(clase.id, formData);
       } else {
         result = await createClass(formData);
@@ -55,7 +53,6 @@ export default function ClassForm({ clase, sprintId, onClose }: ClassFormProps) 
       )}
 
       <form action={handleSubmit} className="space-y-4">
-        <input type="hidden" name="sprintId" value={sprintId} />
         
         <div>
           <label htmlFor="title" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">

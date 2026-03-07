@@ -36,7 +36,7 @@ export default async function ClassPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="container mx-auto p-8 min-h-screen">
-      <Link href={`/sprints/${classData.sprint}`} className="text-blue-500 hover:underline mb-8 inline-block">&larr; Volver al Sprint</Link>
+      <Link href="/classes" className="text-blue-500 hover:underline mb-8 inline-block">&larr; Volver a Clases</Link>
       
       <header className="mb-12">
         <h1 className="text-3xl font-extrabold tracking-tight lg:text-4xl mb-4">

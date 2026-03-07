@@ -21,85 +21,6 @@ export async function updateUserRole(userId: string, role: string) {
   }
 }
 
-export async function createSprint(formData: FormData) {
-  const pb = await createServerClient();
-  const user = pb.authStore.model;
-
-  if (!user || (user.role !== 'docente' && user.role !== 'admin')) {
-    throw new Error("Unauthorized");
-  }
-
-  const title = formData.get('title') as string;
-  const startDate = formData.get('startDate') as string;
-  const endDate = formData.get('endDate') as string;
-
-  if (!title) {
-     return { success: false, error: 'Title is required' };
-  }
-
-  try {
-    const data = {
-      title,
-      startDate: startDate ? new Date(startDate).toISOString() : null,
-      endDate: endDate ? new Date(endDate).toISOString() : null,
-    };
-    
-    await pb.collection('sprints').create(data);
-    revalidatePath('/');
-    return { success: true };
-  } catch (error) {
-    console.error('Failed to create sprint:', error);
-    return { success: false, error: 'Failed to create sprint' };
-  }
-}
-
-export async function updateSprint(sprintId: string, formData: FormData) {
-  const pb = await createServerClient();
-  const user = pb.authStore.model;
-
-  if (!user || (user.role !== 'docente' && user.role !== 'admin')) {
-    throw new Error("Unauthorized");
-  }
-
-  const title = formData.get('title') as string;
-  const startDate = formData.get('startDate') as string;
-  const endDate = formData.get('endDate') as string;
-
-  try {
-     const data: any = {
-      title,
-    };
-    if (startDate) data.startDate = new Date(startDate).toISOString();
-    if (endDate) data.endDate = new Date(endDate).toISOString();
-
-    await pb.collection('sprints').update(sprintId, data);
-    revalidatePath('/');
-    revalidatePath(`/sprints/${sprintId}`);
-    return { success: true };
-  } catch (error) {
-    console.error('Failed to update sprint:', error);
-    return { success: false, error: 'Failed to update sprint' };
-  }
-}
-
-export async function deleteSprint(sprintId: string) {
-  const pb = await createServerClient();
-  const user = pb.authStore.model;
-
-  if (!user || (user.role !== 'docente' && user.role !== 'admin')) {
-    throw new Error("Unauthorized");
-  }
-
-  try {
-    await pb.collection('sprints').delete(sprintId);
-    revalidatePath('/');
-    return { success: true };
-  } catch (error) {
-    console.error('Failed to delete sprint:', error);
-    return { success: false, error: 'Failed to delete sprint' };
-  }
-}
-
 // Classes
 
 export async function createClass(formData: FormData) {
@@ -112,23 +33,21 @@ export async function createClass(formData: FormData) {
 
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
-  const sprintId = formData.get('sprintId') as string;
   const date = formData.get('date') as string;
 
-  if (!title || !sprintId) {
-     return { success: false, error: 'Title and Sprint ID are required' };
+  if (!title) {
+     return { success: false, error: 'Title is required' };
   }
 
   try {
-    const data = {
+    const data: any = {
       title,
       description,
-      sprint: sprintId,
       date: date ? new Date(date).toISOString() : null,
     };
     
     await pb.collection('classes').create(data);
-    revalidatePath(`/sprints/${sprintId}`);
+    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Failed to create class:', error);
@@ -147,7 +66,6 @@ export async function updateClass(classId: string, formData: FormData) {
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
   const date = formData.get('date') as string;
-  const sprintId = formData.get('sprintId') as string;
 
   try {
     const data: any = {
@@ -158,7 +76,7 @@ export async function updateClass(classId: string, formData: FormData) {
 
     await pb.collection('classes').update(classId, data);
     
-    if (sprintId) revalidatePath(`/sprints/${sprintId}`);
+    revalidatePath('/');
     revalidatePath(`/classes/${classId}`);
     return { success: true };
   } catch (error) {
@@ -167,7 +85,7 @@ export async function updateClass(classId: string, formData: FormData) {
   }
 }
 
-export async function deleteClass(classId: string, sprintId?: string) {
+export async function deleteClass(classId: string) {
   const pb = await createServerClient();
   const user = pb.authStore.model;
 
@@ -177,7 +95,7 @@ export async function deleteClass(classId: string, sprintId?: string) {
 
   try {
     await pb.collection('classes').delete(classId);
-    if (sprintId) revalidatePath(`/sprints/${sprintId}`);
+    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Failed to delete class:', error);
@@ -197,21 +115,21 @@ export async function createAssignment(formData: FormData) {
 
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
-  const sprintId = formData.get('sprintId') as string;
+  const dueDate = formData.get('dueDate') as string;
 
-  if (!title || !sprintId) {
-     return { success: false, error: 'Title and Sprint ID are required' };
+  if (!title) {
+     return { success: false, error: 'Title is required' };
   }
 
   try {
-    const data = {
+    const data: any = {
       title,
       description,
-      sprint: sprintId,
     };
+    if (dueDate) data.dueDate = new Date(dueDate).toISOString();
     
     await pb.collection('assignments').create(data);
-    revalidatePath(`/sprints/${sprintId}`);
+    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Failed to create assignment:', error);
@@ -229,17 +147,18 @@ export async function updateAssignment(assignmentId: string, formData: FormData)
 
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
-  const sprintId = formData.get('sprintId') as string;
+  const dueDate = formData.get('dueDate') as string;
 
   try {
-    const data = {
+    const data: any = {
       title,
       description,
     };
+    if (dueDate) data.dueDate = new Date(dueDate).toISOString();
 
     await pb.collection('assignments').update(assignmentId, data);
     
-    if (sprintId) revalidatePath(`/sprints/${sprintId}`);
+    revalidatePath('/');
     revalidatePath(`/assignments/${assignmentId}`);
     return { success: true };
   } catch (error) {
@@ -248,7 +167,7 @@ export async function updateAssignment(assignmentId: string, formData: FormData)
   }
 }
 
-export async function deleteAssignment(assignmentId: string, sprintId?: string) {
+export async function deleteAssignment(assignmentId: string) {
   const pb = await createServerClient();
   const user = pb.authStore.model;
 
@@ -258,7 +177,7 @@ export async function deleteAssignment(assignmentId: string, sprintId?: string) 
 
   try {
     await pb.collection('assignments').delete(assignmentId);
-    if (sprintId) revalidatePath(`/sprints/${sprintId}`);
+    revalidatePath('/');
     return { success: true };
   } catch (error) {
     console.error('Failed to delete assignment:', error);
@@ -429,5 +348,3 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
     return { success: false, error: 'Failed to update delivery' };
   }
 }
-
-
