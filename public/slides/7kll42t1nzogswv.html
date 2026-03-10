@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="es">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+		<title>Clase 1 - Introducción a la IA y GenAI</title>
+
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reset.css">
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.css">
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/theme/black.css">
+
+		<!-- Theme used for syntax highlighted code -->
+		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/plugin/highlight/monokai.css">
+        <style>
+            .reveal {
+                font-size: 20px !important;
+            }
+        </style>
+	</head>
+	<body>
+		<div class="reveal">
+			<div class="slides">
+				
+                <!-- Slide 1: Título -->
+                <section>
+					<h1 style="font-size: 2.5em; color: #a78bfa;">Diseño de Software de Dispositivos Móviles</h1>
+					<h3>Clase 1: Introducción a la IA y la IA Generativa</h3>
+					<p>
+						<small>Docente: Ing. Carlos Acosta Parra</small>
+					</p>
+				</section>
+
+                <!-- Slide 2: Agenda -->
+				<section>
+					<h2>Agenda de Hoy</h2>
+					<ul>
+						<li class="fragment fade-up">Introducción a la Inteligencia Artificial (IA)</li>
+						<li class="fragment fade-up">¿Qué es la IA Generativa?</li>
+						<li class="fragment fade-up">Conceptos Clave: Prompts, Tokens, Contexto</li>
+						<li class="fragment fade-up">IA Generativa en el Desarrollo de Software</li>
+                        <li class="fragment fade-up">Herramientas y Mejores Prácticas</li>
+					</ul>
+				</section>
+
+                <!-- SECCIÓN 1: INTRODUCCIÓN A LA IA -->
+				<section>
+                    <section>
+                        <h2>1. Introducción a la Inteligencia Artificial</h2>
+                        <p class="fragment">¿Qué entendemos por IA?</p>
+                    </section>
+                    
+                    <section>
+                        <h3>Definición General</h3>
+                        <blockquote class="fragment">
+                            "La simulación de procesos de inteligencia humana por parte de máquinas, especialmente sistemas informáticos."
+                        </blockquote>
+                        <p class="fragment" style="font-size: 0.8em;">Incluye: aprendizaje, razonamiento y autocorrección.</p>
+                    </section>
+
+                    <section>
+                        <h3>Ramas Principales</h3>
+                        <div style="display: flex; justify-content: space-around; align-items: center;">
+                            <div class="fragment fade-right" style="flex: 1; padding: 10px;">
+                                <h4>IA Estrecha (ANI)</h4>
+                                <p style="font-size: 0.6em;">Diseñada para una tarea específica (ej. ajedrez, reconocimiento facial).</p>
+                            </div>
+                            <div class="fragment fade-up" style="flex: 1; padding: 10px;">
+                                <h4>Machine Learning</h4>
+                                <p style="font-size: 0.6em;">Algoritmos que mejoran con la experiencia y datos.</p>
+                            </div>
+                            <div class="fragment fade-left" style="flex: 1; padding: 10px;">
+                                <h4>Deep Learning</h4>
+                                <p style="font-size: 0.6em;">Redes neuronales con muchas capas (inspiradas en el cerebro humano).</p>
+                            </div>
+                        </div>
+                    </section>
+                </section>
+
+                <!-- SECCIÓN 2: IA GENERATIVA -->
+                <section>
+                    <section>
+                        <h2>2. Inteligencia Artificial Generativa</h2>
+                        <p>Más allá del análisis y la clasificación.</p>
+                    </section>
+
+                    <section>
+                        <h3>Discriminativa vs. Generativa</h3>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div class="fragment">
+                                <h4 style="color: #60a5fa;">IA Discriminativa</h4>
+                                <p style="font-size: 0.7em;">Clasifica o predice datos existentes.</p>
+                                <pre><code class="python" data-trim data-noescape>
+# ¿Es un gato o un perro?
+input: imagen -> output: "Gato"
+                                </code></pre>
+                            </div>
+                            <div class="fragment">
+                                <h4 style="color: #f472b6;">IA Generativa</h4>
+                                <p style="font-size: 0.7em;">Crea NUEVOS datos similares a los de entrenamiento.</p>
+                                <pre><code class="python" data-trim data-noescape>
+# Dibuja un gato
+input: "Gato azul" -> output: [Imagen Nueva]
+                                </code></pre>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h3>¿Qué puede generar?</h3>
+                        <ul>
+                            <li class="fragment">📝 <b>Texto:</b> Artículos, poemas, código, resúmenes.</li>
+                            <li class="fragment">🖼️ <b>Imágenes:</b> Arte, diseños, fotorealismo (Midjourney, DALL-E).</li>
+                            <li class="fragment">🎵 <b>Audio:</b> Música, voces sintéticas, efectos de sonido.</li>
+                            <li class="fragment">🎬 <b>Video:</b> Clips cortos, animación (Sora, Runway).</li>
+                            <li class="fragment">💻 <b>Código:</b> Software completo, scripts, tests.</li>
+                        </ul>
+                    </section>
+                    
+                    <section>
+                        <h3>LLMs (Large Language Models)</h3>
+                        <p>Modelos entrenados con cantidades masivas de texto.</p>
+                        <p class="fragment" style="font-size: 0.8em;">Aprenden patrones estadísticos para predecir la siguiente palabra (token) en una secuencia.</p>
+                        <div class="fragment" style="background-color: #333; padding: 10px; border-radius: 8px; margin-top: 20px;">
+                            <p style="font-family: monospace;">"El desarrollo de software móvil es..." <span style="color: #a78bfa;">[fundamental/complejo/emocionante]</span></p>
+                        </div>
+                    </section>
+                </section>
+
+                <!-- SECCIÓN 3: CONCEPTOS CLAVE -->
+                <section>
+                    <section>
+                        <h2>3. Conceptos Clave de LLMs</h2>
+                        <p>Entendiendo el lenguaje de la IA.</p>
+                    </section>
+
+                    <section>
+                        <h3>El Prompt</h3>
+                        <blockquote class="fragment">
+                            "El texto de entrada que le damos al modelo para guiar su respuesta."
+                        </blockquote>
+                        <div class="fragment fade-up">
+                            <p><b>Anatomía de un buen Prompt:</b></p>
+                            <ul style="font-size: 0.8em;">
+                                <li>🎯 <b>Instrucción:</b> ¿Qué quieres que haga?</li>
+                                <li>🌍 <b>Contexto:</b> ¿Quién eres? ¿Para qué es esto?</li>
+                                <li>📥 <b>Datos de entrada:</b> La información a procesar.</li>
+                                <li>📤 <b>Formato de salida:</b> Código, tabla, lista, JSON.</li>
+                            </ul>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h3>Tokens</h3>
+                        <p>Los LLMs no leen "palabras", leen "tokens".</p>
+                        <div class="fragment" style="background-color: #333; padding: 15px; border-radius: 8px;">
+                            <p style="font-family: monospace; font-size: 0.9em;">
+                                <span style="background-color: #ef4444; color: white; padding: 2px;">Ing</span><span style="background-color: #3b82f6; color: white; padding: 2px;">enier</span><span style="background-color: #22c55e; color: white; padding: 2px;">ía</span>
+                            </p>
+                            <p style="font-size: 0.6em; margin-top: 10px;">1 palabra ≈ 1.3 tokens (en inglés) / 2-3 tokens (en español)</p>
+                        </div>
+                        <p class="fragment fade-up" style="font-size: 0.7em; margin-top: 20px;">
+                            ⚠️ Importante: Los modelos tienen un límite de tokens por interacción y cobran por ellos (API).
+                        </p>
+                    </section>
+
+                    <section>
+                        <h3>Ventana de Contexto</h3>
+                        <p>La "memoria a corto plazo" del modelo.</p>
+                        <div style="display: flex; justify-content: center; gap: 20px; margin-top: 20px;">
+                            <div class="fragment fade-right" style="border: 1px solid #666; padding: 15px; border-radius: 8px; width: 45%;">
+                                <h4>Ventana Pequeña</h4>
+                                <p style="font-size: 0.6em;">Olvida el inicio de la conversación rápidamente. Pierde instrucciones anteriores.</p>
+                            </div>
+                            <div class="fragment fade-left" style="border: 1px solid #a78bfa; padding: 15px; border-radius: 8px; width: 45%;">
+                                <h4>Ventana Grande</h4>
+                                <p style="font-size: 0.6em;">Puede "leer" libros enteros, múltiples archivos de código y mantener conversaciones largas.</p>
+                            </div>
+                        </div>
+                        <p class="fragment" style="font-size: 0.6em; margin-top: 20px; color: #a78bfa;">
+                            Modelos modernos: 128k - 1M+ tokens.
+                        </p>
+                    </section>
+
+                    <section>
+                        <h3>Temperatura</h3>
+                        <p>Controla la "creatividad" vs "determinismo".</p>
+                        <div style="position: relative; height: 100px; margin-top: 30px;">
+                            <div style="position: absolute; left: 0; bottom: 0; width: 100%; height: 10px; background: linear-gradient(90deg, #3b82f6, #ef4444);"></div>
+                            <div class="fragment fade-down" style="position: absolute; left: 10%; bottom: 20px; text-align: center;">
+                                <span style="font-size: 2em;">❄️</span>
+                                <p style="font-size: 0.5em;">0.0 (Preciso)</p>
+                            </div>
+                            <div class="fragment fade-down" style="position: absolute; left: 80%; bottom: 20px; text-align: center;">
+                                <span style="font-size: 2em;">🔥</span>
+                                <p style="font-size: 0.5em;">1.0 (Creativo)</p>
+                            </div>
+                        </div>
+                        <p class="fragment" style="font-size: 0.7em;">
+                            Para código: Usar temperatura baja (0.0 - 0.2).<br>
+                            Para brainstorming: Usar temperatura media-alta (0.7+).
+                        </p>
+                    </section>
+                </section>
+
+                <!-- SECCIÓN 4: IA EN DESARROLLO DE SOFTWARE -->
+                <section>
+                    <section>
+                        <h2>4. IA Generativa para el Desarrollo de Software</h2>
+                        <p>El nuevo superpoder del desarrollador.</p>
+                    </section>
+
+                    <section>
+                        <h3>Transformación del Flujo de Trabajo</h3>
+                        <p>La IA no reemplaza al desarrollador, lo <span style="color: #facc15;">potencia</span>.</p>
+                        <ul>
+                            <li class="fragment">🚀 Aceleración de tareas repetitivas.</li>
+                            <li class="fragment">🧠 Apoyo en la resolución de problemas complejos.</li>
+                            <li class="fragment">📚 Aprendizaje continuo de nuevas tecnologías.</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h3>Casos de Uso Principales</h3>
+                        
+                        <div class="r-stack">
+                            <div class="fragment fade-out" data-fragment-index="0">
+                                <h4>1. Generación de Código</h4>
+                                <p>Crear estructuras, funciones y clases completas a partir de instrucciones en lenguaje natural.</p>
+                                <pre><code class="javascript">
+// "Crea una función para validar emails"
+function validateEmail(email) {
+  return String(email)
+    .toLowerCase()
+    .match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
+}
+                                </code></pre>
+                            </div>
+                            
+                            <div class="fragment current-visible" data-fragment-index="0">
+                                <h4>2. Explicación de Código</h4>
+                                <p>Entender código legacy o complejo rápidamente.</p>
+                                <blockquote style="font-size: 0.7em;">
+                                    "Este bloque de código utiliza una expresión regular para verificar si la cadena de entrada cumple con el formato estándar de un correo electrónico..."
+                                </blockquote>
+                            </div>
+
+                            <div class="fragment current-visible">
+                                <h4>3. Debugging y Refactorización</h4>
+                                <ul>
+                                    <li>Encontrar errores lógicos y de sintaxis.</li>
+                                    <li>Sugerir mejoras de rendimiento.</li>
+                                    <li>Mejorar la legibilidad del código.</li>
+                                </ul>
+                            </div>
+
+                            <div class="fragment">
+                                <h4>4. Generación de Tests y Documentación</h4>
+                                <p>Escribir pruebas unitarias y documentar funciones automáticamente.</p>
+                                <pre><code class="javascript">
+/**
+ * Valida si un email tiene el formato correcto.
+ * @param {string} email - El email a verificar.
+ * @returns {boolean} - True si es válido.
+ */
+                                </code></pre>
+                            </div>
+                        </div>
+                    </section>
+                </section>
+
+                <!-- SECCIÓN 4: HERRAMIENTAS Y CIERRE -->
+                <section>
+                    <section>
+                        <h3>Herramientas Populares</h3>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div class="fragment">
+                                <h5>Asistentes de Chat</h5>
+                                <ul>
+                                    <li>ChatGPT (OpenAI)</li>
+                                    <li>Claude (Anthropic)</li>
+                                    <li>Gemini (Google)</li>
+                                </ul>
+                            </div>
+                            <div class="fragment">
+                                <h5>Integrados en IDE</h5>
+                                <ul>
+                                    <li>GitHub Copilot</li>
+                                    <li>Trae / Cursor</li>
+                                    <li>Codeium</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h3>Consideraciones Éticas y Prácticas</h3>
+                        <ul>
+                            <li class="fragment" style="color: #ef4444;"><b>Alucinaciones:</b> La IA puede inventar código o bibliotecas que no existen.</li>
+                            <li class="fragment"><b>Seguridad:</b> Cuidado con compartir credenciales o código propietario.</li>
+                            <li class="fragment"><b>Supervisión:</b> Siempre revisar y entender el código generado. Tú eres el responsable final.</li>
+                        </ul>
+                    </section>
+
+                    <section>
+                        <h2>Conclusión</h2>
+                        <p>La IA Generativa es una herramienta poderosa que cambiará cómo construimos software.</p>
+                        <p class="fragment fade-up" style="color: #a78bfa;">¡Úsala para ser más eficiente y creativo!</p>
+                    </section>
+                    
+                    <section>
+                        <h2>¿Preguntas?</h2>
+                        <p>¡Gracias!</p>
+                    </section>
+                </section>
+
+			</div>
+		</div>
+
+		<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/dist/reveal.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/plugin/notes/notes.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/plugin/markdown/markdown.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/reveal.js@4.5.0/plugin/highlight/highlight.js"></script>
+		<script>
+			// More info about initialization & config:
+			// - https://revealjs.com/initialization/
+			// - https://revealjs.com/config/
+			Reveal.initialize({
+				hash: true,
+                slideNumber: true,
+                transition: 'convex', // none/fade/slide/convex/concave/zoom
+
+				// Learn about plugins: https://revealjs.com/plugins/
+				plugins: [ RevealMarkdown, RevealHighlight, RevealNotes ]
+			});
+		</script>
+	</body>
+</html>
