@@ -7,6 +7,7 @@ interface UserProfileData {
   firstName?: string;
   lastName?: string;
   dni?: string;
+  enrollmentId?: string;
   birthDate?: string;
   phone?: string;
 }
@@ -29,6 +30,7 @@ export async function updateUserProfile(userId: string, data: UserProfileData) {
       firstName: data.firstName,
       lastName: data.lastName,
       dni: data.dni,
+      enrollmentId: data.enrollmentId,
       phone: data.phone,
     };
 

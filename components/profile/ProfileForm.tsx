@@ -20,6 +20,7 @@ export default function ProfileForm({ user }: { user: User }) {
       firstName: formData.get("firstName") as string,
       lastName: formData.get("lastName") as string,
       dni: formData.get("dni") as string,
+      enrollmentId: formData.get("enrollmentId") as string,
       birthDate: formData.get("birthDate") as string,
       phone: formData.get("phone") as string,
     };
@@ -85,6 +86,18 @@ export default function ProfileForm({ user }: { user: User }) {
             name="dni"
             id="dni"
             defaultValue={user.dni || ""}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-zinc-800 dark:border-zinc-600 dark:text-white p-2 border"
+          />
+        </div>
+
+        {/* Enrollment ID (Matrícula) */}
+        <div>
+          <label htmlFor="enrollmentId" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Matrícula Universitaria</label>
+          <input
+            type="text"
+            name="enrollmentId"
+            id="enrollmentId"
+            defaultValue={user.enrollmentId || ""}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-zinc-800 dark:border-zinc-600 dark:text-white p-2 border"
           />
         </div>

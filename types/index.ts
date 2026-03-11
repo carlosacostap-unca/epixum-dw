@@ -17,6 +17,7 @@ export interface User extends BaseModel {
   dni?: string;
   birthDate?: string;
   phone?: string;
+  enrollmentId?: string;
   avatar?: string;
   role: UserRole;
 }

@@ -15,6 +15,7 @@ Para que la aplicación funcione correctamente, necesitas crear las siguientes c
 - **firstName**: Text (Required)
 - **lastName**: Text (Required)
 - **dni**: Text
+- **enrollmentId**: Text (Matrícula Universitaria)
 - **birthDate**: Date
 - **phone**: Text
   - Esto permitirá identificar los permisos de cada usuario.
