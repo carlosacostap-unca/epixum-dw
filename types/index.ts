@@ -25,7 +25,7 @@ export interface User extends BaseModel {
 export interface Link extends BaseModel {
   title: string;
   url: string;
-  type?: 'link' | 'file' | 'slide';
+  type?: 'link' | 'file' | 'slide' | 'note' | 'study-guide';
   class?: string; // Relation to Class ID (optional, mutually exclusive with assignment)
   assignment?: string; // Relation to Assignment ID (optional, mutually exclusive with class)
 }

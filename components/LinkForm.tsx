@@ -4,7 +4,7 @@ import { createLink, updateLink, getResourceUploadUrl } from "@/lib/actions";
 import { Link as LinkType } from "@/types";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
-import { getAvailableSlides, SlideOption } from "@/lib/actions-slides";
+import { getAvailableSlides, getAvailableNotes, getAvailableStudyGuides, SlideOption, NoteOption, StudyGuideOption } from "@/lib/actions-slides";
 
 interface LinkFormProps {
   link?: LinkType;
@@ -18,13 +18,19 @@ export default function LinkForm({ link, classId, assignmentId, onClose, isEmbed
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [resourceType, setResourceType] = useState<'link' | 'file' | 'slide'>(link?.type || 'link');
+  const [resourceType, setResourceType] = useState<'link' | 'file' | 'slide' | 'note' | 'study-guide'>(link?.type as any || 'link');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [slides, setSlides] = useState<SlideOption[]>([]);
+  const [notes, setNotes] = useState<NoteOption[]>([]);
+  const [guides, setGuides] = useState<StudyGuideOption[]>([]);
   const [loadingSlides, setLoadingSlides] = useState(false);
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [loadingGuides, setLoadingGuides] = useState(false);
   const [selectedSlidePath, setSelectedSlidePath] = useState<string>(link?.type === 'slide' ? link.url : "");
+  const [selectedNotePath, setSelectedNotePath] = useState<string>(link?.type === 'note' ? link.url : "");
+  const [selectedGuidePath, setSelectedGuidePath] = useState<string>(link?.type === 'study-guide' ? link.url : "");
 
   useEffect(() => {
     if (resourceType === 'slide') {
@@ -39,6 +45,30 @@ export default function LinkForm({ link, classId, assignmentId, onClose, isEmbed
           }
         })
         .finally(() => setLoadingSlides(false));
+    } else if (resourceType === 'note') {
+      setLoadingNotes(true);
+      getAvailableNotes()
+        .then(res => {
+          if (res.success) {
+            setNotes(res.notes);
+            if (!selectedNotePath && res.notes.length > 0 && !link) {
+              setSelectedNotePath(res.notes[0].path);
+            }
+          }
+        })
+        .finally(() => setLoadingNotes(false));
+    } else if (resourceType === 'study-guide') {
+      setLoadingGuides(true);
+      getAvailableStudyGuides()
+        .then(res => {
+          if (res.success) {
+            setGuides(res.guides);
+            if (!selectedGuidePath && res.guides.length > 0 && !link) {
+              setSelectedGuidePath(res.guides[0].path);
+            }
+          }
+        })
+        .finally(() => setLoadingGuides(false));
     }
   }, [resourceType]);
 
@@ -91,6 +121,16 @@ export default function LinkForm({ link, classId, assignmentId, onClose, isEmbed
         url = selectedSlidePath;
         if (!url) {
           throw new Error("Debes seleccionar una diapositiva");
+        }
+      } else if (resourceType === 'note') {
+        url = selectedNotePath;
+        if (!url) {
+          throw new Error("Debes seleccionar una nota del orador");
+        }
+      } else if (resourceType === 'study-guide') {
+        url = selectedGuidePath;
+        if (!url) {
+          throw new Error("Debes seleccionar un apunte");
         }
       }
 
@@ -179,6 +219,28 @@ export default function LinkForm({ link, classId, assignmentId, onClose, isEmbed
               />
               <span className="text-sm font-medium text-gray-900 dark:text-gray-300">Diapositiva</span>
             </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="resourceType"
+                value="note"
+                checked={resourceType === 'note'}
+                onChange={() => setResourceType('note')}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+              <span className="text-sm font-medium text-gray-900 dark:text-gray-300">Nota de Orador</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="resourceType"
+                value="study-guide"
+                checked={resourceType === 'study-guide'}
+                onChange={() => setResourceType('study-guide')}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+              <span className="text-sm font-medium text-gray-900 dark:text-gray-300">Apunte</span>
+            </label>
           </div>
         </div>
 
@@ -195,7 +257,9 @@ export default function LinkForm({ link, classId, assignmentId, onClose, isEmbed
             placeholder={
               resourceType === 'link' ? "Ej: Documentación oficial" : 
               resourceType === 'file' ? "Ej: Guía de estudio PDF" :
-              "Ej: Clase 1 - Introducción"
+              resourceType === 'slide' ? "Ej: Clase 1 - Introducción" :
+              resourceType === 'note' ? "Ej: Notas Clase 1" :
+              "Ej: Apunte de Repaso"
             }
             className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
           />
@@ -265,6 +329,56 @@ export default function LinkForm({ link, classId, assignmentId, onClose, isEmbed
                 {slides.map(slide => (
                   <option key={slide.path} value={slide.path}>
                     {slide.title}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+
+        {resourceType === 'note' && (
+          <div>
+            <label htmlFor="note" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+              Seleccionar Nota de Orador
+            </label>
+            {loadingNotes ? (
+              <div className="text-sm text-zinc-500">Cargando notas...</div>
+            ) : (
+              <select
+                id="note"
+                value={selectedNotePath}
+                onChange={(e) => setSelectedNotePath(e.target.value)}
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+              >
+                {notes.length === 0 && <option value="">No hay notas disponibles</option>}
+                {notes.map(note => (
+                  <option key={note.path} value={note.path}>
+                    {note.title}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+
+        {resourceType === 'study-guide' && (
+          <div>
+            <label htmlFor="guide" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+              Seleccionar Apunte
+            </label>
+            {loadingGuides ? (
+              <div className="text-sm text-zinc-500">Cargando apuntes...</div>
+            ) : (
+              <select
+                id="guide"
+                value={selectedGuidePath}
+                onChange={(e) => setSelectedGuidePath(e.target.value)}
+                className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+              >
+                {guides.length === 0 && <option value="">No hay apuntes disponibles</option>}
+                {guides.map(guide => (
+                  <option key={guide.path} value={guide.path}>
+                    {guide.title}
                   </option>
                 ))}
               </select>
