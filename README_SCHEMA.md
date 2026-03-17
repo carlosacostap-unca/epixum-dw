@@ -33,7 +33,7 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
 
 - **List/View Rule**: `id = @request.auth.id || @request.auth.role = "admin"`
 - **Create Rule**: `""` (Público, para permitir registro)
-- **Update Rule**: `(id = @request.auth.id && @request.data.role:isset = false) || @request.auth.role = "admin"`
+- **Update Rule**: `id = @request.auth.id && (@request.data.role:isset = false || role = @request.data.role) || @request.auth.role = "admin"`
   - *Nota*: Esto permite que los usuarios editen su perfil pero **NO** su rol. Solo los admins pueden cambiar roles.
 - **Delete Rule**: `id = @request.auth.id || @request.auth.role = "admin"`
   - *Nota*: Permite que los usuarios borren su cuenta y que los admins borren a cualquiera.
