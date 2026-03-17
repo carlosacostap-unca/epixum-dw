@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Epixum - Mobile",
-  description: "Plataforma de gestión educativa",
+  title: "Epixum - Diseño Web",
+  description: "Plataforma de gestión educativa para el curso de Diseño Web",
   icons: {
     icon: '/epixum-logo.png',
   },
