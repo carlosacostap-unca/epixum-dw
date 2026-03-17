@@ -33,8 +33,8 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
 
 - **List/View Rule**: `id = @request.auth.id || @request.auth.role = "admin"`
 - **Create Rule**: `""` (Público, para permitir registro)
-- **Update Rule**: `id = @request.auth.id && (@request.data.role:isset = false || role = @request.data.role) || @request.auth.role = "admin"`
-  - *Nota*: Esto permite que los usuarios editen su perfil pero **NO** su rol. Solo los admins pueden cambiar roles.
+- **Update Rule**: `id = @request.auth.id || @request.auth.role = "admin"`
+  - *Nota Importante para PocketBase v0.22+*: En versiones recientes de PocketBase, la protección de campos específicos (como evitar que un usuario cambie su propio rol) se maneja mejor mediante la opción **"API Rules" > "Options" > "Hidden/Protected fields"** o configurando el campo `role` como no modificable por la API, en lugar de usar complejas reglas de `:isset` en la Update Rule. Por ahora, usa esta regla básica y asegúrate de que tu frontend no permita enviar el campo `role` al actualizar el perfil.
 - **Delete Rule**: `id = @request.auth.id || @request.auth.role = "admin"`
   - *Nota*: Permite que los usuarios borren su cuenta y que los admins borren a cualquiera.
 
