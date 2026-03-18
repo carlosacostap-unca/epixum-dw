@@ -26,7 +26,7 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
 
 **Collections: `classes`, `assignments`, `links`**
 
-- **List/View Rule**: `""` (Público o accesible para todos los autenticados, según prefieras. Si es solo estudiantes/docentes: `@request.auth.id != ""`)
+- **List/View Rule**: `""` (Dejar vacío para que sea **Público**. Si prefieres que solo lo vean usuarios logueados, usa: `@request.auth.id != ""`)
 - **Create/Update/Delete Rule**: `@request.auth.role = "docente" || @request.auth.role = "admin"`
 
 **Collection: `users`**
