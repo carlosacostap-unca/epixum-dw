@@ -27,13 +27,15 @@ export default function Header() {
           document.cookie = pb.authStore.exportToCookie({ httpOnly: false });
           setUser(updatedUser as unknown as User);
         } catch (e: any) {
-          console.error("Failed to refresh user data", e);
           if (e?.status === 404) {
             // If the user is not found, the session is likely invalid or from an old DB (e.g. localhost cookie conflict)
+            // Silence the error and clear auth
+            console.warn("User not found (404), clearing invalid session.");
             pb.authStore.clear();
             document.cookie = "pb_auth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
             setUser(null);
           } else {
+            console.error("Failed to refresh user data", e);
             setUser(pb.authStore.model as unknown as User);
           }
         }
@@ -77,7 +79,7 @@ export default function Header() {
             height={32} 
             className="w-8 h-8 object-contain"
           />
-          <span>Epixum - Mobile</span>
+          <span>Epixum - Diseño Web</span>
         </Link>
         <div className="flex items-center gap-4">
           {user?.role === 'admin' && (
@@ -91,12 +93,12 @@ export default function Header() {
           {user && (
              <Link href="/profile" className="flex items-center gap-2 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
                {user.avatar && (
-                 <img 
-                   src={`${process.env.NEXT_PUBLIC_POCKETBASE_URL}/api/files/_pb_users_auth_/${user.id}/${user.avatar}`} 
-                   className="w-5 h-5 rounded-full object-cover"
-                   alt=""
-                 />
-               )}
+                <img 
+                  src={`${process.env.NEXT_PUBLIC_POCKETBASE_URL?.replace(/\/$/, '')}/api/files/_pb_users_auth_/${user.id}/${user.avatar}`} 
+                  className="w-5 h-5 rounded-full object-cover"
+                  alt=""
+                />
+              )}
                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
                 {user.name} 
                 <span className="ml-1 opacity-60">({user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Estudiante'})</span>
