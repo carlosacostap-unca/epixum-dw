@@ -10,6 +10,7 @@ interface UserProfileData {
   enrollmentId?: string;
   birthDate?: string;
   phone?: string;
+  approvedWebDesignModule?: boolean;
 }
 
 export async function updateUserProfile(userId: string, data: UserProfileData) {
@@ -32,6 +33,7 @@ export async function updateUserProfile(userId: string, data: UserProfileData) {
       dni: data.dni,
       enrollmentId: data.enrollmentId,
       phone: data.phone,
+      approvedWebDesignModule: data.approvedWebDesignModule,
     };
 
     // Handle birthDate

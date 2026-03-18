@@ -18,6 +18,7 @@ export interface User extends BaseModel {
   birthDate?: string;
   phone?: string;
   enrollmentId?: string;
+  approvedWebDesignModule?: boolean;
   avatar?: string;
   role: UserRole;
 }

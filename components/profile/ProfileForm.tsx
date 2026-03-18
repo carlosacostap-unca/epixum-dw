@@ -23,6 +23,7 @@ export default function ProfileForm({ user }: { user: User }) {
       enrollmentId: formData.get("enrollmentId") as string,
       birthDate: formData.get("birthDate") as string,
       phone: formData.get("phone") as string,
+      approvedWebDesignModule: formData.get("approvedWebDesignModule") === "on",
     };
 
     const result = await updateUserProfile(user.id, data);
@@ -124,6 +125,29 @@ export default function ProfileForm({ user }: { user: User }) {
             defaultValue={formattedBirthDate}
             className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-zinc-800 dark:border-zinc-600 dark:text-white p-2 border"
           />
+        </div>
+
+        {/* Approved Web Design Module */}
+        <div className="col-span-2">
+          <div className="flex items-start">
+            <div className="flex items-center h-5">
+              <input
+                id="approvedWebDesignModule"
+                name="approvedWebDesignModule"
+                type="checkbox"
+                defaultChecked={user.approvedWebDesignModule}
+                className="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded"
+              />
+            </div>
+            <div className="ml-3 text-sm">
+              <label htmlFor="approvedWebDesignModule" className="font-medium text-gray-700 dark:text-gray-300">
+                Aprobado Módulo de Diseño Web
+              </label>
+              <p className="text-gray-500 dark:text-gray-400">
+                Diplomatura Universitaria en Desarrollo Web Fullstack con JavaScript (UNCA - Nodo Tecnológico SFVC)
+              </p>
+            </div>
+          </div>
         </div>
 
       </div>
