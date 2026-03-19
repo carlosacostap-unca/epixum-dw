@@ -1,12 +1,20 @@
 import OpenAI from 'openai';
 import { Assignment, Delivery } from '@/types';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+let openaiClient: OpenAI | null = null;
+
+const getOpenAIClient = () => {
+  if (!openaiClient && process.env.OPENAI_API_KEY) {
+    openaiClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  return openaiClient;
+};
 
 export async function generateAIEvaluation(assignment: Assignment, deliveryContent: any, repositoryUrl?: string) {
-  if (!process.env.OPENAI_API_KEY) {
+  const client = getOpenAIClient();
+  if (!client) {
     console.warn("OPENAI_API_KEY is not set. Skipping AI evaluation.");
     return null;
   }
@@ -44,7 +52,7 @@ Devuelve el resultado estrictamente en formato JSON con la siguiente estructura,
 }
 `;
 
-    const response = await openai.chat.completions.create({
+    const response = await client.chat.completions.create({
       model: 'gpt-5-mini', // Cambiar a 'gpt-4o-mini' si da error de que no existe
       messages: [
         { role: 'system', content: 'Eres un profesor estricto pero justo.' },

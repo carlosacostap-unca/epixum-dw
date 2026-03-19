@@ -1,12 +1,13 @@
 import { S3Client, PutObjectCommand, GetObjectCommand, GetBucketCorsCommand, PutBucketCorsCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
+// Only instantiate S3Client if credentials exist, to avoid build errors
 export const s3Client = new S3Client({
-  endpoint: process.env.IDRIVE_ENDPOINT,
+  endpoint: process.env.IDRIVE_ENDPOINT || "https://dummy-endpoint.com",
   region: process.env.IDRIVE_REGION || "us-east-1",
   credentials: {
-    accessKeyId: process.env.IDRIVE_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.IDRIVE_SECRET_ACCESS_KEY!,
+    accessKeyId: process.env.IDRIVE_ACCESS_KEY_ID || "dummy-key",
+    secretAccessKey: process.env.IDRIVE_SECRET_ACCESS_KEY || "dummy-secret",
   },
   forcePathStyle: true, // Needed for iDrive/MinIO
 });
