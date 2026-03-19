@@ -123,3 +123,16 @@ export async function getUserDelivery(assignmentId: string, userId: string) {
     return null;
   }
 }
+
+export async function getDeliveryById(deliveryId: string) {
+  const pb = await createServerClient();
+  try {
+    const record = await pb.collection('deliveries').getOne<Delivery>(deliveryId, {
+      expand: 'student,assignment'
+    });
+    return record;
+  } catch (error) {
+    console.error('Error fetching delivery by ID:', error);
+    return null;
+  }
+}

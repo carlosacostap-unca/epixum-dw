@@ -41,10 +41,19 @@ export interface Class extends BaseModel {
   };
 }
 
+export interface Question {
+  id: string;
+  text: string;
+}
+
+export type AssignmentType = 'file_upload' | 'questionnaire';
+
 export interface Assignment extends BaseModel {
   title: string;
   description: string;
-  dueDate?: string; // Adding dueDate as it might be useful without sprints
+  dueDate?: string;
+  type?: AssignmentType;
+  questions?: Question[];
   // Expanding relations
   expand?: {
     links?: Link[];
@@ -55,9 +64,16 @@ export interface Assignment extends BaseModel {
 export interface Delivery extends BaseModel {
   assignment: string;
   student: string;
-  repositoryUrl: string;
+  repositoryUrl?: string; // Used for file upload URL
+  content?: any; // Used for questionnaire answers
+  status?: 'draft' | 'submitted' | 'graded';
+  grade?: number;
+  feedback?: string;
+  aiGrade?: number;
+  aiFeedback?: string;
   expand?: {
     student?: User;
+    assignment?: Assignment;
   };
 }
 

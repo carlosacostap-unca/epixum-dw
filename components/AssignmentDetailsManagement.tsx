@@ -60,6 +60,11 @@ export default function AssignmentDetailsManagement({ user, assignment, links, i
             <span className="px-3 py-1 text-sm font-medium text-purple-600 bg-purple-100 rounded-full dark:bg-purple-900 dark:text-purple-200">
                 TP
             </span>
+            {assignment.dueDate && (
+                <span className={`px-3 py-1 text-sm font-medium rounded-full ${new Date(assignment.dueDate) < new Date() ? 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-200' : 'text-orange-600 bg-orange-100 dark:bg-orange-900 dark:text-orange-200'}`}>
+                    Vence: {new Date(assignment.dueDate).toLocaleString()}
+                </span>
+            )}
         </div>
         <h1 className="text-3xl font-extrabold tracking-tight lg:text-4xl mb-4 pr-12">
           {assignment.title}
@@ -82,6 +87,25 @@ export default function AssignmentDetailsManagement({ user, assignment, links, i
             </button>
         </div>
         
+        {assignment.type === 'questionnaire' && assignment.questions && assignment.questions.length > 0 && (
+            <div className="mb-8 p-6 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                    <span className="p-1 bg-purple-100 dark:bg-purple-900 rounded-md">
+                        <svg className="w-5 h-5 text-purple-600 dark:text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    </span>
+                    Cuestionario ({assignment.questions.length} preguntas)
+                </h3>
+                <div className="space-y-4">
+                    {assignment.questions.map((q, idx) => (
+                        <div key={q.id} className="p-4 bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-100 dark:border-zinc-700">
+                            <span className="text-sm font-bold text-zinc-500 mb-1 block">Pregunta {idx + 1}</span>
+                            <p className="text-zinc-800 dark:text-zinc-200">{q.text}</p>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )}
+
         {links.length === 0 ? (
           <p className="text-zinc-500">No hay enlaces disponibles para este trabajo práctico.</p>
         ) : (

@@ -43,7 +43,7 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
     return (
         <div className="container mx-auto p-8 min-h-screen space-y-8">
             <AssignmentDetailsManagement user={user} assignment={assignment} links={links} inquiries={inquiries} />
-            <TeacherDeliveries deliveries={deliveries} assignmentId={assignment.id} />
+            <TeacherDeliveries deliveries={deliveries} assignment={assignment} />
         </div>
     );
   }
@@ -57,6 +57,11 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
             <span className="px-3 py-1 text-sm font-medium text-purple-600 bg-purple-100 rounded-full dark:bg-purple-900 dark:text-purple-200">
                 TP
             </span>
+            {assignment.dueDate && (
+                <span className={`px-3 py-1 text-sm font-medium rounded-full ${new Date(assignment.dueDate) < new Date() ? 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-200' : 'text-orange-600 bg-orange-100 dark:bg-orange-900 dark:text-orange-200'}`}>
+                    Vence: {new Date(assignment.dueDate).toLocaleString()}
+                </span>
+            )}
         </div>
         <h1 className="text-3xl font-extrabold tracking-tight lg:text-4xl mb-4">
           {assignment.title}
@@ -112,6 +117,7 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
             delivery={userDelivery}
             studentName={user.name}
             assignmentTitle={assignment.title}
+            assignment={assignment}
         />
       )}
     </div>

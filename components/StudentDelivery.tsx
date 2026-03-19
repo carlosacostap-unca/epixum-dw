@@ -1,8 +1,8 @@
 "use client";
 
 import { createDelivery, updateDelivery, getUploadUrl, getDeliveryDownloadUrl, ensureCorsConfigured } from "@/lib/actions";
-import { Delivery } from "@/types";
-import { useState, useRef } from "react";
+import { Delivery, Assignment } from "@/types";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import JSZip from "jszip";
 
@@ -11,10 +11,11 @@ interface StudentDeliveryProps {
   delivery: Delivery | null;
   studentName: string;
   assignmentTitle: string;
+  assignment: Assignment;
 }
 
-export default function StudentDelivery({ assignmentId, delivery, studentName, assignmentTitle }: StudentDeliveryProps) {
-  const [isEditing, setIsEditing] = useState(!delivery);
+export default function StudentDelivery({ assignmentId, delivery, studentName, assignmentTitle, assignment }: StudentDeliveryProps) {
+  const [isEditing, setIsEditing] = useState(!delivery || delivery.status === 'draft');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string>("");
@@ -24,9 +25,26 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
   const [selectedFiles, setSelectedFiles] = useState<{ file: File, path: string }[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Questionnaire state
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+
   const router = useRouter();
 
-  const isDelivered = !!delivery;
+  const isDelivered = !!delivery && delivery.status !== 'draft';
+  const isDraft = !!delivery && delivery.status === 'draft';
+  const isPastDue = assignment.dueDate ? new Date(assignment.dueDate) < new Date() : false;
+
+  useEffect(() => {
+    if (delivery?.content && assignment.type === 'questionnaire') {
+      try {
+        const savedAnswers = typeof delivery.content === 'string' ? JSON.parse(delivery.content) : delivery.content;
+        setAnswers(savedAnswers);
+      } catch (e) {
+        console.error("Error parsing saved answers", e);
+      }
+    }
+  }, [delivery, assignment.type]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -144,108 +162,135 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
     }
   };
 
-  async function handleSubmit(e: React.FormEvent) {
+  const handleAnswerChange = (questionId: string, value: string) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: value
+    }));
+  };
+
+  async function handleSubmit(e: React.FormEvent, submitStatus: 'draft' | 'submitted' = 'submitted') {
     e.preventDefault();
-    
-    if (selectedFiles.length === 0 && !delivery) {
-      setError("Debes seleccionar una carpeta para subir");
-      return;
-    }
-
-    if (selectedFiles.length === 0 && delivery) {
-        setError("Debes seleccionar una carpeta para actualizar tu entrega");
-        return;
-    }
-
-    setLoading(true);
-    setCurrentStep('compressing');
     setError(null);
-    setStatus("Preparando archivos...");
+    setLoading(true);
+    setStatus("Guardando...");
 
     try {
-      const zip = new JSZip();
-      
-      // Add files to zip
-      setStatus("Comprimiendo carpeta...");
-      let fileCount = 0;
-      for (const { file, path } of selectedFiles) {
-        zip.file(path, file);
-        fileCount++;
-      }
+      if (assignment.type === 'questionnaire') {
+        const formData = new FormData();
+        formData.append("assignmentId", assignmentId);
+        formData.append("content", JSON.stringify(answers));
+        formData.append("status", submitStatus);
 
-      if (fileCount === 0) {
-        throw new Error("No se encontraron archivos en la carpeta seleccionada");
-      }
+        const result = delivery 
+          ? await updateDelivery(delivery.id, formData)
+          : await createDelivery(formData);
 
-      // Generate zip blob
-      const blob = await zip.generateAsync({ type: "blob" });
-      
-      // Generate filename: StudentName_AssignmentTitle.zip
-      const safeStudentName = studentName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const safeAssignmentTitle = assignmentTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const filename = `${safeStudentName}_${safeAssignmentTitle}.zip`;
-
-      // Get upload URL
-      setStatus("Obteniendo autorización de subida...");
-      // Stay in compressing step or move to uploading? Let's keep compressing/preparing until we have the URL
-      
-      const uploadAuth = await getUploadUrl(filename, "application/zip");
-
-      if (!uploadAuth.success || !uploadAuth.url) {
-        throw new Error(uploadAuth.error || "No se pudo obtener la URL de subida");
-      }
-
-      // Upload to S3
-      setCurrentStep('uploading');
-      setStatus("Subiendo archivo a iDrive...");
-      
-      const uploadResponse = await fetch(uploadAuth.url, {
-        method: "PUT",
-        body: blob,
-        headers: {
-            "Content-Type": "application/zip",
+        if (result.success) {
+          if (submitStatus === 'submitted') {
+            setIsEditing(false);
+          }
+          router.refresh();
+        } else {
+          setError(result.error || "Error al guardar las respuestas");
         }
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error("Error al subir el archivo a iDrive. Verifica tu conexión o intenta nuevamente.");
-      }
-
-      // Calculate final file URL
-      const fileUrl = uploadAuth.url.split('?')[0];
-
-      // Save delivery record
-      setCurrentStep('saving');
-      setStatus("Guardando entrega...");
-      
-      const formData = new FormData();
-      formData.append("assignmentId", assignmentId);
-      formData.append("repositoryUrl", fileUrl);
-
-      const result = delivery 
-        ? await updateDelivery(delivery.id, formData)
-        : await createDelivery(formData);
-
-      if (result.success) {
-        setCurrentStep('completed');
-        setIsEditing(false);
-        setStatus("");
-        router.refresh();
       } else {
-        setError(result.error || "Error al guardar la entrega");
-        setCurrentStep('idle');
+        // File upload logic
+        if (selectedFiles.length === 0 && !delivery) {
+          throw new Error("Debes seleccionar una carpeta para subir");
+        }
+
+        if (selectedFiles.length === 0 && delivery && !isDraft) {
+            // Only updating status? No, file upload usually implies re-uploading content
+            // Unless we allow changing status without changing file?
+            // For now, assume if file list is empty, we keep existing file if not editing file?
+            // But UI forces selection if isEditing is true.
+            throw new Error("Debes seleccionar una carpeta para actualizar tu entrega");
+        }
+
+        setCurrentStep('compressing');
+        setStatus("Preparando archivos...");
+
+        const zip = new JSZip();
+        
+        // Add files to zip
+        setStatus("Comprimiendo carpeta...");
+        let fileCount = 0;
+        for (const { file, path } of selectedFiles) {
+          zip.file(path, file);
+          fileCount++;
+        }
+
+        if (fileCount === 0) {
+          throw new Error("No se encontraron archivos en la carpeta seleccionada");
+        }
+
+        // Generate zip blob
+        const blob = await zip.generateAsync({ type: "blob" });
+        
+        // Generate filename: StudentName_AssignmentTitle.zip
+        const safeStudentName = studentName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const safeAssignmentTitle = assignmentTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const filename = `${safeStudentName}_${safeAssignmentTitle}.zip`;
+
+        // Get upload URL
+        setStatus("Obteniendo autorización de subida...");
+        
+        const uploadAuth = await getUploadUrl(filename, "application/zip");
+
+        if (!uploadAuth.success || !uploadAuth.url) {
+          throw new Error(uploadAuth.error || "No se pudo obtener la URL de subida");
+        }
+
+        // Upload to S3
+        setCurrentStep('uploading');
+        setStatus("Subiendo archivo a iDrive...");
+        
+        const uploadResponse = await fetch(uploadAuth.url, {
+          method: "PUT",
+          body: blob,
+          headers: {
+              "Content-Type": "application/zip",
+          }
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error("Error al subir el archivo a iDrive. Verifica tu conexión o intenta nuevamente.");
+        }
+
+        // Calculate final file URL
+        const fileUrl = uploadAuth.url.split('?')[0];
+
+        // Save delivery record
+        setCurrentStep('saving');
+        setStatus("Guardando entrega...");
+        
+        const formData = new FormData();
+        formData.append("assignmentId", assignmentId);
+        formData.append("repositoryUrl", fileUrl);
+        formData.append("status", "submitted"); // File uploads are always submitted directly for now? Or should we support drafts too? User asked for drafts for questionnaires.
+
+        const result = delivery 
+          ? await updateDelivery(delivery.id, formData)
+          : await createDelivery(formData);
+
+        if (result.success) {
+          setCurrentStep('completed');
+          setIsEditing(false);
+          setStatus("");
+          router.refresh();
+        } else {
+          setError(result.error || "Error al guardar la entrega");
+          setCurrentStep('idle');
+        }
       }
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Ocurrió un error inesperado");
       setCurrentStep('idle');
-      setShowCorsFix(true);
+      if (assignment.type !== 'questionnaire') setShowCorsFix(true);
     } finally {
       setLoading(false);
-      if (currentStep !== 'completed') {
-          // Keep 'completed' state if successful so UI doesn't flash back
-          // actually we set isEditing(false) on success, so this component unmounts/re-renders in view mode
-      }
     }
   }
 
@@ -320,6 +365,8 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
             <span className={`p-2 rounded-lg ${
                 isDelivered 
                 ? "bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400" 
+                : isDraft
+                ? "bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-400"
                 : "bg-zinc-100 text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400"
             }`}>
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -328,22 +375,40 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
             </span>
             <div>
                 <span className="block">Mi Entrega</span>
-                {isDelivered && (
+                {isDelivered ? (
                     <span className="text-xs font-normal text-green-600 dark:text-green-400">
                         Tarea completada
                     </span>
-                )}
+                ) : isDraft ? (
+                    <span className="text-xs font-normal text-yellow-600 dark:text-yellow-400">
+                        Borrador guardado
+                    </span>
+                ) : null}
             </div>
         </h2>
         
         <span className={`px-4 py-1.5 text-sm font-semibold rounded-full border ${
             isDelivered 
             ? "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800" 
-            : "bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-500 dark:border-yellow-800"
+            : isDraft
+            ? "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800"
+            : "bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-700 dark:text-zinc-300 dark:border-zinc-600"
         }`}>
-            {isDelivered ? "✅ Entregado" : "⏳ Pendiente"}
+            {isDelivered ? "✅ Entregado" : isDraft ? "📝 Borrador" : "⏳ Pendiente"}
         </span>
       </div>
+
+      {delivery?.feedback && (
+        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
+          <h3 className="text-sm font-bold text-blue-800 dark:text-blue-300 mb-1">Feedback del Docente</h3>
+          <p className="text-blue-900 dark:text-blue-100">{delivery.feedback}</p>
+          {delivery.grade && (
+             <div className="mt-2 text-lg font-bold text-blue-700 dark:text-blue-400">
+               Nota: {delivery.grade}
+             </div>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 p-4 text-red-700 bg-red-100 rounded-lg dark:bg-red-900 dark:text-red-300">
@@ -360,26 +425,38 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
         </div>
       )}
 
-      {!isEditing && delivery ? (
+      {!isEditing && delivery && !isDraft ? (
         <div className="bg-white dark:bg-zinc-900 rounded-xl p-6 border border-zinc-200 dark:border-zinc-700 shadow-sm">
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
             <div className="flex-1 overflow-hidden">
                 <label className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-2 block">
-                  Archivo Entregado
+                  {assignment.type === 'questionnaire' ? 'Respuestas Enviadas' : 'Archivo Entregado'}
                 </label>
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-500">
-                        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M13 9V3.5L18.5 9M6 2c-1.11 0-1.99.89-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6H6z"/></svg>
-                    </div>
-                    <button
-                      onClick={handleDownload}
-                      className="text-lg font-medium text-blue-600 hover:text-blue-800 hover:underline truncate text-left"
-                    >
-                      Descargar Entrega (.zip)
-                    </button>
-                </div>
                 
-                <div className="flex items-center gap-2 text-sm text-zinc-500 bg-zinc-50 dark:bg-zinc-800/50 py-2 px-3 rounded-md inline-flex">
+                {assignment.type === 'questionnaire' ? (
+                  <div className="space-y-4">
+                    {assignment.questions?.map((q, idx) => (
+                      <div key={q.id} className="p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded border border-zinc-100 dark:border-zinc-800">
+                        <p className="text-xs font-bold text-zinc-500 mb-1">Pregunta {idx + 1}: {q.text}</p>
+                        <p className="text-sm text-zinc-800 dark:text-zinc-200">{answers[q.id] || "Sin respuesta"}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-500">
+                          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M13 9V3.5L18.5 9M6 2c-1.11 0-1.99.89-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6H6z"/></svg>
+                      </div>
+                      <button
+                        onClick={handleDownload}
+                        className="text-lg font-medium text-blue-600 hover:text-blue-800 hover:underline truncate text-left"
+                      >
+                        Descargar Entrega (.zip)
+                      </button>
+                  </div>
+                )}
+                
+                <div className="mt-4 flex items-center gap-2 text-sm text-zinc-500 bg-zinc-50 dark:bg-zinc-800/50 py-2 px-3 rounded-md inline-flex">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                     <span>Entregado el <strong>{new Date(delivery.created).toLocaleDateString()}</strong> a las <strong>{new Date(delivery.created).toLocaleTimeString()}</strong></span>
                 </div>
@@ -387,7 +464,9 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
 
             <button
                 onClick={() => setIsEditing(true)}
-                className="shrink-0 px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 hover:text-zinc-900 transition-colors shadow-sm flex items-center gap-2"
+                disabled={isPastDue}
+                className="shrink-0 px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 hover:text-zinc-900 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={isPastDue ? "La fecha límite ha pasado" : "Modificar entrega"}
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                 Modificar Entrega
@@ -395,104 +474,182 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
           </div>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="bg-zinc-50 dark:bg-zinc-900/50 rounded-xl p-6 border border-zinc-200 dark:border-zinc-700">
-          <div className="mb-6">
-            <label htmlFor="project-folder" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-              Carpeta del Proyecto
-            </label>
-            <div 
-              className={`relative border-2 border-dashed rounded-xl p-8 transition-all ${
-                isDragging 
-                  ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20" 
-                  : "border-zinc-300 dark:border-zinc-700 hover:border-purple-400 dark:hover:border-purple-500"
-              }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-                <input
-                  type="file"
-                  id="project-folder"
-                  ref={fileInputRef}
-                  {...({ webkitdirectory: "", directory: "" } as any)}
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-                <div className="flex flex-col items-center justify-center text-center gap-3">
-                  <div className={`p-4 rounded-full ${
-                    selectedFolderName 
-                      ? "bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400" 
-                      : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"
-                  }`}>
-                    {selectedFolderName ? (
-                        <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
-                    ) : (
-                        <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                    )}
-                  </div>
-                  
-                  {selectedFolderName ? (
-                    <div>
-                        <p className="font-medium text-zinc-900 dark:text-zinc-100 mb-1">{selectedFolderName}</p>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setSelectedFolderName(null);
-                                setSelectedFiles([]);
-                                if (fileInputRef.current) fileInputRef.current.value = "";
-                            }}
-                            className="text-xs text-red-500 hover:text-red-700 hover:underline"
-                        >
-                            Eliminar selección
-                        </button>
-                    </div>
+        <form onSubmit={(e) => handleSubmit(e, 'submitted')} className="bg-zinc-50 dark:bg-zinc-900/50 rounded-xl p-6 border border-zinc-200 dark:border-zinc-700">
+          
+          {isPastDue && (
+            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-800 dark:text-red-300 flex items-center gap-3">
+              <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <p className="text-sm font-medium">La fecha límite para este trabajo práctico ha pasado. Ya no es posible realizar entregas ni modificaciones.</p>
+            </div>
+          )}
+
+          {assignment.type === 'questionnaire' ? (
+            <div className="space-y-6">
+              {assignment.questions?.map((q, idx) => (
+                <div key={q.id}>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                    <span className="text-zinc-500 mr-2">{idx + 1}.</span>
+                    {q.text}
+                  </label>
+                  <textarea
+                    value={answers[q.id] || ''}
+                    onChange={(e) => handleAnswerChange(q.id, e.target.value)}
+                    rows={4}
+                    disabled={isPastDue}
+                    className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 disabled:opacity-50 disabled:bg-zinc-100 dark:disabled:bg-zinc-900"
+                    placeholder={isPastDue ? "Entrega cerrada" : "Escribe tu respuesta aquí..."}
+                  />
+                </div>
+              ))}
+              
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-200 dark:border-zinc-700">
+                <button
+                  type="button"
+                  onClick={(e) => handleSubmit(e as any, 'draft')}
+                  disabled={loading || isPastDue}
+                  className="px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Guardar Borrador
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading || isPastDue}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Guardando...
+                    </>
                   ) : (
                     <>
-                        <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                className="font-semibold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:underline"
-                            >
-                                Selecciona una carpeta
-                            </button>
-                            {" "}o arrástrala aquí
-                        </p>
-                        <p className="text-xs text-zinc-500">
-                            Se comprimirá automáticamente en un archivo ZIP
-                        </p>
+                      Enviar Entrega Final
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                     </>
                   )}
-                </div>
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <>
+              <div className="mb-6">
+                <label htmlFor="project-folder" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                  Código Fuente (Carpeta del Proyecto)
+                </label>
+                <div 
+                  className={`relative border-2 border-dashed rounded-xl p-8 transition-all ${
+                    isDragging 
+                      ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20" 
+                      : isPastDue 
+                        ? "border-red-300 bg-red-50/50 dark:border-red-800/50 dark:bg-red-900/10 cursor-not-allowed" 
+                        : "border-zinc-300 dark:border-zinc-700 hover:border-purple-400 dark:hover:border-purple-500"
+                  }`}
+                  onDragOver={isPastDue ? undefined : handleDragOver}
+                  onDragLeave={isPastDue ? undefined : handleDragLeave}
+                  onDrop={isPastDue ? undefined : handleDrop}
+                >
+                    <input
+                      type="file"
+                      id="project-folder"
+                      ref={fileInputRef}
+                      disabled={isPastDue}
+                      {...({ webkitdirectory: "", directory: "" } as any)}
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                    <div className="flex flex-col items-center justify-center text-center gap-3">
+                      <div className={`p-4 rounded-full ${
+                        selectedFolderName 
+                          ? "bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400" 
+                          : isPastDue
+                            ? "bg-red-100 text-red-400 dark:bg-red-900/30 dark:text-red-500"
+                            : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"
+                      }`}>
+                        {selectedFolderName ? (
+                            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
+                        ) : (
+                            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                        )}
+                      </div>
+                      
+                      {selectedFolderName ? (
+                        <div>
+                            <p className="font-medium text-zinc-900 dark:text-zinc-100 mb-1">{selectedFolderName}</p>
+                            {!isPastDue && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSelectedFolderName(null);
+                                        setSelectedFiles([]);
+                                        if (fileInputRef.current) fileInputRef.current.value = "";
+                                    }}
+                                    className="text-xs text-red-500 hover:text-red-700 hover:underline"
+                                >
+                                    Eliminar selección
+                                </button>
+                            )}
+                        </div>
+                      ) : (
+                        <>
+                            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                                {isPastDue ? (
+                                    "Entrega cerrada"
+                                ) : (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="font-semibold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:underline"
+                                        >
+                                            Selecciona una carpeta
+                                        </button>
+                                        {" "}o arrástrala aquí
+                                    </>
+                                )}
+                            </p>
+                            {!isPastDue && (
+                                <p className="text-xs text-zinc-500">
+                                    Se comprimirá automáticamente en un archivo ZIP
+                                </p>
+                            )}
+                        </>
+                      )}
+                    </div>
+                </div>
+              </div>
 
-          <div className="flex items-center justify-end gap-3">
-            {loading ? (
-                <ProgressSteps />
-            ) : (
-                <>
-                    {isDelivered && (
+              <div className="flex items-center justify-end gap-3">
+                {loading ? (
+                    <ProgressSteps />
+                ) : (
+                    <>
+                        {isDelivered && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsEditing(false);
+                                }}
+                                className="px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 transition-colors"
+                            >
+                                Cancelar
+                            </button>
+                        )}
                         <button
-                            type="button"
-                            onClick={() => {
-                                setIsEditing(false);
-                            }}
-                            className="px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 transition-colors"
+                        type="submit"
+                        disabled={loading || isPastDue}
+                        className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            Cancelar
+                        {isDelivered ? "Actualizar Entrega" : "Entregar Tarea"}
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                         </button>
-                    )}
-                    <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-6 py-2 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2 shadow-sm"
-                    >
-                    {delivery ? "Modificar Entrega" : "Realizar Entrega"}
-                    </button>
-                </>
-            )}
-          </div>
+                    </>
+                )}
+              </div>
+            </>
+          )}
         </form>
       )}
     </div>

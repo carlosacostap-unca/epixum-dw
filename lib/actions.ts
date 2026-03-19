@@ -3,6 +3,8 @@
 import { createServerClient } from "@/lib/pocketbase-server";
 import { revalidatePath } from "next/cache";
 import { getPresignedUploadUrl, getPresignedDownloadUrl, configureBucketCors } from "./s3";
+import { generateAIEvaluation } from "./ai";
+import { Assignment } from "@/types";
 
 export async function ensureCorsConfigured() {
   try {
@@ -227,6 +229,8 @@ export async function createAssignment(formData: FormData) {
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
   const dueDate = formData.get('dueDate') as string;
+  const type = formData.get('type') as string;
+  const questionsStr = formData.get('questions') as string;
 
   if (!title) {
      return { success: false, error: 'Title is required' };
@@ -236,8 +240,16 @@ export async function createAssignment(formData: FormData) {
     const data: any = {
       title,
       description,
+      type,
     };
     if (dueDate) data.dueDate = new Date(dueDate).toISOString();
+    if (questionsStr) {
+      try {
+        data.questions = JSON.parse(questionsStr);
+      } catch (e) {
+        console.error('Failed to parse questions:', e);
+      }
+    }
     
     await pb.collection('assignments').create(data);
     revalidatePath('/');
@@ -259,13 +271,23 @@ export async function updateAssignment(assignmentId: string, formData: FormData)
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
   const dueDate = formData.get('dueDate') as string;
+  const type = formData.get('type') as string;
+  const questionsStr = formData.get('questions') as string;
 
   try {
     const data: any = {
       title,
       description,
+      type,
     };
     if (dueDate) data.dueDate = new Date(dueDate).toISOString();
+    if (questionsStr) {
+      try {
+        data.questions = JSON.parse(questionsStr);
+      } catch (e) {
+        console.error('Failed to parse questions:', e);
+      }
+    }
 
     await pb.collection('assignments').update(assignmentId, data);
     
@@ -409,19 +431,76 @@ export async function createDelivery(formData: FormData) {
 
   const assignmentId = (formData.get('assignmentId') as string)?.trim();
   const repositoryUrl = (formData.get('repositoryUrl') as string)?.trim();
+  const contentStr = (formData.get('content') as string);
+  const status = (formData.get('status') as string) || 'submitted'; // Default to submitted if not specified
 
-  if (!assignmentId || !repositoryUrl) {
-     return { success: false, error: 'Assignment ID and Repository URL are required' };
+  if (!assignmentId) {
+     return { success: false, error: 'Assignment ID is required' };
+  }
+
+  // Validate based on what is provided. 
+  // We might not know the assignment type here easily without fetching it, 
+  // but we can check if at least one delivery method is present.
+  if (!repositoryUrl && !contentStr) {
+     return { success: false, error: 'Either Repository URL or Content is required' };
   }
 
   try {
     const data: Record<string, any> = {
       assignment: assignmentId,
       student: user.id,
-      repositoryUrl,
+      status,
     };
     
-    await pb.collection('deliveries').create(data);
+    if (repositoryUrl) data.repositoryUrl = repositoryUrl;
+    if (contentStr) {
+        try {
+            data.content = JSON.parse(contentStr);
+        } catch (e) {
+            data.content = contentStr; 
+        }
+    }
+
+    const delivery = await pb.collection('deliveries').create(data);
+    
+    // --- Clean up drafts ---
+    if (status === 'submitted') {
+      try {
+        // Find all draft deliveries for this user and assignment
+        const drafts = await pb.collection('deliveries').getFullList({
+          filter: `assignment = "${assignmentId}" && student = "${user.id}" && status = "draft" && id != "${delivery.id}"`
+        });
+        
+        // Delete them
+        for (const draft of drafts) {
+          await pb.collection('deliveries').delete(draft.id);
+        }
+      } catch (draftError) {
+        console.error("Failed to clean up drafts:", draftError);
+      }
+    }
+    // ------------------------
+    
+    // --- AI Preevaluation (Background) ---
+    if (status === 'submitted') {
+      // Execute in background without blocking the response
+      Promise.resolve().then(async () => {
+        try {
+          const bgPb = await createServerClient();
+          const assignment = await bgPb.collection('assignments').getOne<Assignment>(assignmentId);
+          const aiResult = await generateAIEvaluation(assignment, data.content, repositoryUrl);
+          if (aiResult) {
+            await bgPb.collection('deliveries').update(delivery.id, {
+              aiGrade: aiResult.aiGrade,
+              aiFeedback: aiResult.aiFeedback
+            });
+          }
+        } catch (aiError) {
+          console.error("AI Evaluation failed during creation in background:", aiError);
+        }
+      });
+    }
+    // ------------------------
     
     revalidatePath(`/assignments/${assignmentId}`);
     return { success: true };
@@ -447,23 +526,108 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
   // although PocketBase API rules should handle this, it's good to be explicit or just try/catch
   
   const repositoryUrl = (formData.get('repositoryUrl') as string)?.trim();
+  const contentStr = (formData.get('content') as string);
+  const status = (formData.get('status') as string);
   const assignmentId = (formData.get('assignmentId') as string)?.trim(); // Needed for revalidation
 
-  if (!repositoryUrl) {
-     return { success: false, error: 'Repository URL is required' };
+  if (!repositoryUrl && !contentStr && !status) {
+     return { success: false, error: 'Nothing to update' };
   }
 
   try {
-    const data = {
-      repositoryUrl,
+    const data: any = {};
+    if (repositoryUrl) data.repositoryUrl = repositoryUrl;
+    if (status) data.status = status;
+    if (contentStr) {
+        try {
+            data.content = JSON.parse(contentStr);
+        } catch (e) {
+            data.content = contentStr;
+        }
+    }
+
+    // Save data first
+    await pb.collection('deliveries').update(deliveryId, data);
+    
+    // --- Clean up drafts ---
+    if (status === 'submitted') {
+      try {
+        const currentDelivery = await pb.collection('deliveries').getOne(deliveryId);
+        const actualAssignmentId = assignmentId || currentDelivery.assignment;
+        
+        // Find all draft deliveries for this user and assignment
+        const drafts = await pb.collection('deliveries').getFullList({
+          filter: `assignment = "${actualAssignmentId}" && student = "${user.id}" && status = "draft" && id != "${deliveryId}"`
+        });
+        
+        // Delete them
+        for (const draft of drafts) {
+          await pb.collection('deliveries').delete(draft.id);
+        }
+      } catch (draftError) {
+        console.error("Failed to clean up drafts:", draftError);
+      }
+    }
+    // ------------------------
+
+    // --- AI Preevaluation (Background) ---
+    if (status === 'submitted') {
+      Promise.resolve().then(async () => {
+        try {
+          const bgPb = await createServerClient();
+          const currentDelivery = await bgPb.collection('deliveries').getOne(deliveryId);
+          const actualAssignmentId = assignmentId || currentDelivery.assignment;
+          const assignment = await bgPb.collection('assignments').getOne<Assignment>(actualAssignmentId);
+          const actualContent = data.content || currentDelivery.content;
+          const actualRepoUrl = repositoryUrl || currentDelivery.repositoryUrl;
+          
+          const aiResult = await generateAIEvaluation(assignment, actualContent, actualRepoUrl);
+          if (aiResult) {
+            await bgPb.collection('deliveries').update(deliveryId, {
+              aiGrade: aiResult.aiGrade,
+              aiFeedback: aiResult.aiFeedback
+            });
+          }
+        } catch (aiError) {
+          console.error("AI Evaluation failed during update in background:", aiError);
+        }
+      });
+    }
+    // ------------------------
+
+    if (assignmentId) revalidatePath(`/assignments/${assignmentId}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update delivery:', error);
+    return { success: false, error: 'Failed to update delivery' };
+  }
+}
+
+export async function gradeDelivery(deliveryId: string, formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || (user.role !== 'docente' && user.role !== 'admin')) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  const grade = formData.get('grade') as string;
+  const feedback = formData.get('feedback') as string;
+  const assignmentId = formData.get('assignmentId') as string;
+
+  try {
+    const data: any = {
+      status: 'graded'
     };
+    if (grade) data.grade = parseFloat(grade);
+    if (feedback) data.feedback = feedback;
 
     await pb.collection('deliveries').update(deliveryId, data);
     
     if (assignmentId) revalidatePath(`/assignments/${assignmentId}`);
     return { success: true };
   } catch (error) {
-    console.error('Failed to update delivery:', error);
-    return { success: false, error: 'Failed to update delivery' };
+    console.error('Failed to grade delivery:', error);
+    return { success: false, error: 'Failed to grade delivery' };
   }
 }

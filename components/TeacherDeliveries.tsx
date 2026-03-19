@@ -1,36 +1,18 @@
 "use client";
 
-import { Delivery } from "@/types";
+import { Delivery, Assignment } from "@/types";
 import { useState } from "react";
-import { getDeliveryDownloadUrl } from "@/lib/actions";
+import Link from "next/link";
 
 interface TeacherDeliveriesProps {
   deliveries: Delivery[];
-  assignmentId: string;
+  assignment: Assignment;
 }
 
-export default function TeacherDeliveries({ deliveries, assignmentId }: TeacherDeliveriesProps) {
+export default function TeacherDeliveries({ deliveries, assignment }: TeacherDeliveriesProps) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   
   const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL?.replace(/\/$/, "") || "";
-
-  const handleDownload = async (deliveryId: string) => {
-    setDownloadingId(deliveryId);
-    try {
-        const result = await getDeliveryDownloadUrl(deliveryId);
-        if (result.success && result.url) {
-            window.open(result.url, '_blank');
-        } else {
-            alert(result.error || "No se pudo obtener el enlace de descarga");
-        }
-    } catch (err) {
-        console.error(err);
-        alert("Error al intentar descargar el archivo");
-    } finally {
-        setDownloadingId(null);
-    }
-  };
 
   const filteredDeliveries = deliveries.filter(delivery => {
     const student = delivery.expand?.student;
@@ -50,6 +32,7 @@ export default function TeacherDeliveries({ deliveries, assignmentId }: TeacherD
         Entregas ({deliveries.length})
       </h2>
 
+      {/* Search Input */}
       <div className="mb-4">
         <input
           type="text"
@@ -68,10 +51,13 @@ export default function TeacherDeliveries({ deliveries, assignmentId }: TeacherD
                 Estudiante
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-300 uppercase tracking-wider">
-                Archivo
+                Estado
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-300 uppercase tracking-wider">
-                Fecha
+                Nota
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-300 uppercase tracking-wider">
+                Acciones
               </th>
             </tr>
           </thead>
@@ -80,7 +66,6 @@ export default function TeacherDeliveries({ deliveries, assignmentId }: TeacherD
               filteredDeliveries.map((delivery) => {
                 const student = delivery.expand?.student;
                 const studentName = student?.name || "Estudiante desconocido";
-                const studentEmail = student?.email || "Sin email";
                 
                 return (
                 <tr key={delivery.id}>
@@ -103,32 +88,38 @@ export default function TeacherDeliveries({ deliveries, assignmentId }: TeacherD
                         <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                           {studentName}
                         </div>
+                        <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                            {new Date(delivery.created).toLocaleDateString()}
+                        </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <button 
-                      onClick={() => handleDownload(delivery.id)}
-                      disabled={downloadingId === delivery.id}
-                      className="text-sm text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 hover:underline flex items-center gap-1 disabled:opacity-50"
-                    >
-                      {downloadingId === delivery.id ? (
-                        <span className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full mr-1"></span>
-                      ) : (
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M13 9V3.5L18.5 9M6 2c-1.11 0-1.99.89-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6H6z"/></svg>
-                      )}
-                      Descargar ZIP
-                    </button>
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                        ${delivery.status === 'graded' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 
+                          delivery.status === 'submitted' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' : 
+                          'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'}`}>
+                        {delivery.status === 'graded' ? 'Calificado' : 
+                         delivery.status === 'submitted' ? 'Entregado' : 'Borrador'}
+                      </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
-                    {new Date(delivery.created).toLocaleDateString()}
+                    {delivery.grade !== undefined ? delivery.grade : '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <Link 
+                        href={`/deliveries/${delivery.id}`}
+                        className="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300"
+                    >
+                        Ver / Calificar
+                    </Link>
                   </td>
                 </tr>
                 );
               })
             ) : (
               <tr>
-                <td colSpan={5} className="px-6 py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                <td colSpan={4} className="px-6 py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
                   No hay entregas registradas
                 </td>
               </tr>
