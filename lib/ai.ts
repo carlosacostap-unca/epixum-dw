@@ -1,5 +1,7 @@
 import OpenAI from 'openai';
 import { Assignment, Delivery } from '@/types';
+import fs from 'fs/promises';
+import path from 'path';
 
 let openaiClient: OpenAI | null = null;
 
@@ -33,9 +35,29 @@ export async function generateAIEvaluation(assignment: Assignment, deliveryConte
       studentWork = `El estudiante ha entregado un archivo/repositorio. URL: ${repositoryUrl}\n(Nota: La IA no puede leer directamente el contenido de este archivo zip, pero puedes evaluar el hecho de que se haya entregado si es necesario, o pedirle al profesor que lo revise manualmente).`;
     }
 
+    let extraContext = "";
+    
+    // Si es el Trabajo Práctico 1, leemos el apunte y lo añadimos al contexto
+    const titleLower = assignment.title.toLowerCase();
+    if (titleLower.includes('trabajo práctico 1') || titleLower.includes('tp1') || titleLower.includes('tp 1')) {
+      try {
+        const apuntePath = path.join(process.cwd(), 'docs', 'apuntes', 'Apunte_Unidad_1_Fundamentos_de_la_Web.md');
+        const apunteContent = await fs.readFile(apuntePath, 'utf-8');
+        extraContext = `\nContexto para la evaluación (Apunte de la Unidad 1):\n${apunteContent}\n\nLas respuestas del estudiante deben evaluarse en base a este apunte.`;
+      } catch (err) {
+        console.error("No se pudo leer el apunte de la Unidad 1", err);
+      }
+    }
+
     const prompt = `
 Eres un asistente de evaluación de trabajos prácticos para un curso de diseño web.
 Debes realizar una preevaluación del trabajo del estudiante.
+
+IMPORTANTE SOBRE EL PERFIL DEL ESTUDIANTE:
+Los estudiantes son alumnos del 1er año de la Tecnicatura en Diseño de Software y acaban de comenzar el cursado de su carrera.
+Aún no han visto programación (lo verán el próximo semestre). En este semestre tienen diseño web, introducción a metodologías ágiles y diseño de experiencia de usuario.
+Por lo tanto, tu evaluación no debe ser estricta ni exigir conocimientos técnicos avanzados o de programación que aún no poseen. Sé comprensivo, alentador y evalúa de acuerdo a este nivel inicial.
+${extraContext}
 
 Detalles del Trabajo Práctico:
 Título: ${assignment.title}
@@ -44,7 +66,7 @@ Tipo: ${assignment.type}
 
 ${studentWork}
 
-Tu tarea es proporcionar una calificación del 1 al 10 y un feedback constructivo para el estudiante.
+Tu tarea es proporcionar una calificación del 1 al 10 y un feedback constructivo y alentador para el estudiante.
 Devuelve el resultado estrictamente en formato JSON con la siguiente estructura, sin markdown ni comillas invertidas:
 {
   "grade": número (1 al 10),
@@ -55,7 +77,7 @@ Devuelve el resultado estrictamente en formato JSON con la siguiente estructura,
     const response = await client.chat.completions.create({
       model: 'gpt-5-mini', // Cambiar a 'gpt-4o-mini' si da error de que no existe
       messages: [
-        { role: 'system', content: 'Eres un profesor estricto pero justo.' },
+        { role: 'system', content: 'Eres un profesor comprensivo, empático y justo, enfocado en estudiantes de primer año que recién comienzan.' },
         { role: 'user', content: prompt }
       ],
       response_format: { type: "json_object" },
