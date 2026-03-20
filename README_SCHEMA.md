@@ -81,8 +81,8 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - **List/View Rule**: `student = @request.auth.id || @request.auth.role = "docente" || @request.auth.role = "admin"`
         - *Nota*: Los estudiantes solo ven sus entregas; docentes/admins ven todas.
     - **Create Rule**: `@request.auth.id != "" && @request.auth.role = "estudiante"`
-    - **Update Rule**: `student = @request.auth.id || @request.auth.role = "admin"`
-        - *Nota*: Estudiantes pueden modificar su entrega.
+    - **Update Rule**: `student = @request.auth.id || @request.auth.role = "docente" || @request.auth.role = "admin"`
+        - *Nota*: Estudiantes pueden modificar su entrega, y docentes pueden calificarlas.
     - **Delete Rule**: `student = @request.auth.id || @request.auth.role = "admin"`
 
 ## 6. Colección: `teams`

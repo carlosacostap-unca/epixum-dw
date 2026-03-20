@@ -503,7 +503,7 @@ export async function createDelivery(formData: FormData) {
     // ------------------------
     
     revalidatePath(`/assignments/${assignmentId}`);
-    return { success: true };
+    return { success: true, id: delivery.id };
   } catch (error) {
     console.error('Failed to create delivery:', error);
     // Check for unique constraint violation
@@ -537,7 +537,14 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
   try {
     const data: any = {};
     if (repositoryUrl) data.repositoryUrl = repositoryUrl;
-    if (status) data.status = status;
+    if (status) {
+        data.status = status;
+        // Si el estudiante vuelve a enviar o guarda borrador, se limpia la calificación previa
+        if (status === 'submitted' || status === 'draft') {
+            data.grade = null;
+            data.feedback = "";
+        }
+    }
     if (contentStr) {
         try {
             data.content = JSON.parse(contentStr);
@@ -596,7 +603,7 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
     // ------------------------
 
     if (assignmentId) revalidatePath(`/assignments/${assignmentId}`);
-    return { success: true };
+    return { success: true, id: deliveryId };
   } catch (error) {
     console.error('Failed to update delivery:', error);
     return { success: false, error: 'Failed to update delivery' };
@@ -625,7 +632,7 @@ export async function gradeDelivery(deliveryId: string, formData: FormData) {
     await pb.collection('deliveries').update(deliveryId, data);
     
     if (assignmentId) revalidatePath(`/assignments/${assignmentId}`);
-    return { success: true };
+    return { success: true, id: deliveryId };
   } catch (error) {
     console.error('Failed to grade delivery:', error);
     return { success: false, error: 'Failed to grade delivery' };

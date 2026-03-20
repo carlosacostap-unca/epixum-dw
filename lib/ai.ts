@@ -67,10 +67,11 @@ Tipo: ${assignment.type}
 ${studentWork}
 
 Tu tarea es proporcionar una calificación del 1 al 10 y un feedback constructivo y alentador para el estudiante.
-Devuelve el resultado estrictamente en formato JSON con la siguiente estructura, sin markdown ni comillas invertidas:
+Usa formato Markdown (negritas, listas, saltos de línea) en el feedback para que sea fácil de leer y estructurado.
+Devuelve el resultado estrictamente en formato JSON con la siguiente estructura, sin markdown en el bloque general ni comillas invertidas:
 {
   "grade": número (1 al 10),
-  "feedback": "Tu devolución detallada aquí"
+  "feedback": "Tu devolución detallada aquí (puedes incluir \\n y markdown)"
 }
 `;
 

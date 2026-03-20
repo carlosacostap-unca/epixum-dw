@@ -5,6 +5,9 @@ import { Delivery, Assignment } from "@/types";
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import JSZip from "jszip";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 
 interface StudentDeliveryProps {
   assignmentId: string;
@@ -28,11 +31,27 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
   
   // Questionnaire state
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  
+  // Auto-save state
+  const [localDeliveryId, setLocalDeliveryId] = useState<string | undefined>(delivery?.id);
+  const [lastAutoSave, setLastAutoSave] = useState<Date | null>(null);
+  const [isAutoSaving, setIsAutoSaving] = useState(false);
+
+  const answersRef = useRef(answers);
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
+
+  const localDeliveryIdRef = useRef(localDeliveryId);
+  useEffect(() => {
+    localDeliveryIdRef.current = localDeliveryId;
+  }, [localDeliveryId]);
 
   const router = useRouter();
 
   const isDelivered = !!delivery && delivery.status !== 'draft';
   const isDraft = !!delivery && delivery.status === 'draft';
+  const isGraded = !!delivery && delivery.status === 'graded';
   const isPastDue = assignment.dueDate ? new Date(assignment.dueDate) < new Date() : false;
 
   useEffect(() => {
@@ -44,7 +63,47 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
         console.error("Error parsing saved answers", e);
       }
     }
+    if (delivery?.id) {
+        setLocalDeliveryId(delivery.id);
+    }
   }, [delivery, assignment.type]);
+
+  // Auto-save effect
+  useEffect(() => {
+    const isTP1 = assignment.title.toLowerCase().includes('tp1');
+    if (!isEditing || assignment.type !== 'questionnaire' || isPastDue || !isTP1) return;
+
+    const interval = setInterval(async () => {
+      // Only auto-save if there are actual answers
+      if (Object.keys(answersRef.current).length === 0) return;
+
+      setIsAutoSaving(true);
+      try {
+        const formData = new FormData();
+        formData.append("assignmentId", assignmentId);
+        formData.append("content", JSON.stringify(answersRef.current));
+        formData.append("status", "draft");
+
+        const currentDeliveryId = localDeliveryIdRef.current;
+        const result = currentDeliveryId
+          ? await updateDelivery(currentDeliveryId, formData)
+          : await createDelivery(formData);
+
+        if (result.success) {
+          if (!currentDeliveryId && result.id) {
+            setLocalDeliveryId(result.id);
+          }
+          setLastAutoSave(new Date());
+        }
+      } catch (e) {
+        console.error("Auto-save failed", e);
+      } finally {
+        setIsAutoSaving(false);
+      }
+    }, 120000); // 2 minutes
+
+    return () => clearInterval(interval);
+  }, [isEditing, assignment.type, isPastDue, assignmentId, assignment.title]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -182,13 +241,19 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
         formData.append("content", JSON.stringify(answers));
         formData.append("status", submitStatus);
 
-        const result = delivery 
-          ? await updateDelivery(delivery.id, formData)
+        const currentDeliveryId = localDeliveryIdRef.current;
+        const result = currentDeliveryId 
+          ? await updateDelivery(currentDeliveryId, formData)
           : await createDelivery(formData);
 
         if (result.success) {
+          if (!currentDeliveryId && result.id) {
+            setLocalDeliveryId(result.id);
+          }
           if (submitStatus === 'submitted') {
             setIsEditing(false);
+          } else {
+            setLastAutoSave(new Date());
           }
           router.refresh();
         } else {
@@ -375,7 +440,11 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
             </span>
             <div>
                 <span className="block">Mi Entrega</span>
-                {isDelivered ? (
+                {isGraded ? (
+                    <span className="text-xs font-normal text-purple-600 dark:text-purple-400">
+                        Trabajo evaluado
+                    </span>
+                ) : isDelivered ? (
                     <span className="text-xs font-normal text-green-600 dark:text-green-400">
                         Tarea completada
                     </span>
@@ -388,22 +457,28 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
         </h2>
         
         <span className={`px-4 py-1.5 text-sm font-semibold rounded-full border ${
-            isDelivered 
+            isGraded
+            ? "bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800"
+            : isDelivered 
             ? "bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800" 
             : isDraft
             ? "bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-800"
             : "bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-700 dark:text-zinc-300 dark:border-zinc-600"
         }`}>
-            {isDelivered ? "✅ Entregado" : isDraft ? "📝 Borrador" : "⏳ Pendiente"}
+            {isGraded ? "🎓 Calificado" : isDelivered ? "✅ Entregado" : isDraft ? "📝 Borrador" : "⏳ Pendiente"}
         </span>
       </div>
 
       {delivery?.feedback && (
         <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
-          <h3 className="text-sm font-bold text-blue-800 dark:text-blue-300 mb-1">Feedback del Docente</h3>
-          <p className="text-blue-900 dark:text-blue-100">{delivery.feedback}</p>
+          <h3 className="text-sm font-bold text-blue-800 dark:text-blue-300 mb-2">Feedback del Docente</h3>
+          <div className="prose prose-sm max-w-none text-blue-900 dark:text-blue-100 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-p:leading-relaxed">
+            <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+              {delivery.feedback}
+            </ReactMarkdown>
+          </div>
           {delivery.grade && (
-             <div className="mt-2 text-lg font-bold text-blue-700 dark:text-blue-400">
+             <div className="mt-4 pt-3 border-t border-blue-200 dark:border-blue-800/50 text-lg font-bold text-blue-700 dark:text-blue-400">
                Nota: {delivery.grade}
              </div>
           )}
@@ -463,13 +538,21 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
             </div>
 
             <button
-                onClick={() => setIsEditing(true)}
+                onClick={() => {
+                    if (isGraded) {
+                        if (confirm("Tu trabajo ya ha sido evaluado. Si haces una nueva entrega, tu trabajo volverá al estado de 'Entregado' para ser revisado nuevamente. ¿Deseas continuar?")) {
+                            setIsEditing(true);
+                        }
+                    } else {
+                        setIsEditing(true);
+                    }
+                }}
                 disabled={isPastDue}
                 className="shrink-0 px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 hover:text-zinc-900 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                title={isPastDue ? "La fecha límite ha pasado" : "Modificar entrega"}
+                title={isPastDue ? "La fecha límite ha pasado" : isGraded ? "Hacer una nueva entrega" : "Modificar entrega"}
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                Modificar Entrega
+                {isGraded ? "Nueva Entrega" : "Modificar Entrega"}
             </button>
           </div>
         </div>
@@ -503,6 +586,24 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
               ))}
               
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-200 dark:border-zinc-700">
+                {lastAutoSave && (
+                  <span className="text-xs text-zinc-500 mr-auto flex items-center gap-1">
+                    {isAutoSaving ? (
+                      <>
+                        <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Guardando borrador...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3 h-3 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                        Borrador guardado {lastAutoSave.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </>
+                    )}
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={(e) => handleSubmit(e as any, 'draft')}

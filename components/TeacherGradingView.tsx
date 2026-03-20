@@ -5,6 +5,9 @@ import { useState } from "react";
 import { getDeliveryDownloadUrl, gradeDelivery } from "@/lib/actions";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 
 interface TeacherGradingViewProps {
   delivery: Delivery;
@@ -137,13 +140,15 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
 
         {delivery.aiGrade !== undefined && delivery.aiFeedback && delivery.status !== 'graded' && (
             <div className="mb-8 p-6 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl">
-                <h4 className="flex items-center gap-2 text-lg font-semibold text-purple-800 dark:text-purple-300 mb-3">
+                <h4 className="flex items-center gap-2 text-lg font-semibold text-purple-800 dark:text-purple-300 mb-4">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                     Preevaluación de IA sugerida
                 </h4>
-                <p className="text-base text-purple-900 dark:text-purple-100 mb-4 whitespace-pre-wrap leading-relaxed">
-                    {delivery.aiFeedback}
-                </p>
+                <div className="prose prose-sm max-w-none text-purple-900 dark:text-purple-100 prose-a:text-purple-600 dark:prose-a:text-purple-400 prose-p:leading-relaxed mb-6">
+                    <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                        {delivery.aiFeedback}
+                    </ReactMarkdown>
+                </div>
                 <div className="text-lg font-bold text-purple-700 dark:text-purple-400">
                     Nota sugerida: <span className="text-2xl">{delivery.aiGrade}</span>/10
                 </div>
