@@ -59,7 +59,7 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
             </span>
             {assignment.dueDate && (
                 <span className={`px-3 py-1 text-sm font-medium rounded-full ${new Date(assignment.dueDate) < new Date() ? 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-200' : 'text-orange-600 bg-orange-100 dark:bg-orange-900 dark:text-orange-200'}`}>
-                    Vence: {new Date(assignment.dueDate).toLocaleString()}
+                    Vence: {new Date(assignment.dueDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
                 </span>
             )}
         </div>

@@ -57,15 +57,15 @@ export default function AssignmentDetailsManagement({ user, assignment, links, i
         </div>
         
         <div className="flex items-center gap-4 mb-2">
-            <span className="px-3 py-1 text-sm font-medium text-purple-600 bg-purple-100 rounded-full dark:bg-purple-900 dark:text-purple-200">
-                TP
-            </span>
-            {assignment.dueDate && (
-                <span className={`px-3 py-1 text-sm font-medium rounded-full ${new Date(assignment.dueDate) < new Date() ? 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-200' : 'text-orange-600 bg-orange-100 dark:bg-orange-900 dark:text-orange-200'}`}>
-                    Vence: {new Date(assignment.dueDate).toLocaleString()}
+                <span className="px-3 py-1 text-sm font-medium text-purple-600 bg-purple-100 rounded-full dark:bg-purple-900 dark:text-purple-200">
+                    TP
                 </span>
-            )}
-        </div>
+                {assignment.dueDate && (
+                    <span className={`px-3 py-1 text-sm font-medium rounded-full ${new Date(assignment.dueDate) < new Date() ? 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-200' : 'text-orange-600 bg-orange-100 dark:bg-orange-900 dark:text-orange-200'}`}>
+                        Vence: {new Date(assignment.dueDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    </span>
+                )}
+            </div>
         <h1 className="text-3xl font-extrabold tracking-tight lg:text-4xl mb-4 pr-12">
           {assignment.title}
         </h1>
