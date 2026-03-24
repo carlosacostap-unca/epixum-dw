@@ -48,11 +48,11 @@ export default function ClassDetailsManagement({ user, classData, links, inquiri
             if (result.success && result.url) {
                 window.open(result.url, '_blank');
             } else {
-                alert("No se pudo descargar el archivo.");
+                alert("No se pudo acceder al archivo.");
             }
         } catch (error) {
             console.error(error);
-            alert("Error al descargar el archivo.");
+            alert("Error al acceder al archivo.");
         }
     }
   };
