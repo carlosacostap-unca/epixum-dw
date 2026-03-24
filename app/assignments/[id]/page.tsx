@@ -8,6 +8,7 @@ import StudentDelivery from "@/components/StudentDelivery";
 import TeacherDeliveries from "@/components/TeacherDeliveries";
 import { getInquiries } from "@/lib/actions-inquiries";
 import InquiryList from "@/components/inquiries/InquiryList";
+import ResourceLink from "@/components/ResourceLink";
 
 export const dynamic = 'force-dynamic';
 
@@ -59,7 +60,7 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
             </span>
             {assignment.dueDate && (
                 <span className={`px-3 py-1 text-sm font-medium rounded-full ${new Date(assignment.dueDate) < new Date() ? 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-200' : 'text-orange-600 bg-orange-100 dark:bg-orange-900 dark:text-orange-200'}`}>
-                    Vence: {new Date(assignment.dueDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                    Vence: {new Date(assignment.dueDate).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })}
                 </span>
             )}
         </div>
@@ -80,27 +81,7 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {links.map((link) => (
-              <a 
-                href={link.url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                key={link.id}
-                className="block p-6 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 hover:shadow-lg transition-all group"
-              >
-                <div className="flex items-center justify-between mb-2">
-                    <div>
-                        <h3 className="text-lg font-bold group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">
-                        {link.title}
-                        </h3>
-                        <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2 truncate max-w-[200px]">
-                            {link.url}
-                        </p>
-                    </div>
-                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-zinc-100 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
-                        LINK
-                    </span>
-                </div>
-              </a>
+              <ResourceLink key={link.id} link={link} />
             ))}
           </div>
         )}

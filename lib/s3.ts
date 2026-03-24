@@ -70,6 +70,7 @@ export async function getPresignedDownloadUrl(filename: string) {
   const command = new GetObjectCommand({
     Bucket: bucketName,
     Key: filename,
+    ResponseContentDisposition: "inline",
   });
 
   const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });

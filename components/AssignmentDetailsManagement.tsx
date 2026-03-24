@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Assignment, Link as LinkType, User, Inquiry } from "@/types";
 import Link from "next/link";
 import { deleteLink } from "@/lib/actions";
+import { getResourceDownloadUrl } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 import AssignmentForm from "./AssignmentForm";
 import LinkForm from "./LinkForm";
@@ -31,6 +32,23 @@ export default function AssignmentDetailsManagement({ user, assignment, links, i
 
   const isSlideResource = (link: LinkType) => {
     return link.type === 'slide';
+  };
+
+  const handleResourceClick = async (e: React.MouseEvent, link: LinkType) => {
+    if (isFileResource(link)) {
+        e.preventDefault();
+        try {
+            const result = await getResourceDownloadUrl(link.id);
+            if (result.success && result.url) {
+                window.open(result.url, '_blank');
+            } else {
+                alert("No se pudo acceder al archivo.");
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Error al acceder al archivo.");
+        }
+    }
   };
 
   const handleDeleteLink = async (linkId: string) => {
@@ -62,7 +80,7 @@ export default function AssignmentDetailsManagement({ user, assignment, links, i
                 </span>
                 {assignment.dueDate && (
                     <span className={`px-3 py-1 text-sm font-medium rounded-full ${new Date(assignment.dueDate) < new Date() ? 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-200' : 'text-orange-600 bg-orange-100 dark:bg-orange-900 dark:text-orange-200'}`}>
-                        Vence: {new Date(assignment.dueDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                        Vence: {new Date(assignment.dueDate).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' })}
                     </span>
                 )}
             </div>
@@ -136,7 +154,13 @@ export default function AssignmentDetailsManagement({ user, assignment, links, i
                      </button>
                  </div>
 
-                <a href={link.url} target="_blank" rel="noopener noreferrer" className="block h-full">
+                <a 
+                    href={isFileResource(link) ? '#' : link.url} 
+                    target={isFileResource(link) ? undefined : "_blank"} 
+                    rel={isFileResource(link) ? undefined : "noopener noreferrer"} 
+                    onClick={(e) => handleResourceClick(e, link)}
+                    className="block h-full"
+                >
                     <div className="flex items-center justify-between mb-2">
                         <div>
                             <h3 className={`text-lg font-bold transition-colors pr-8 ${
