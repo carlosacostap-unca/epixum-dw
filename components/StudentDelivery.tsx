@@ -472,16 +472,27 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
       {delivery?.feedback && (
         <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
           <h3 className="text-sm font-bold text-blue-800 dark:text-blue-300 mb-2">Feedback del Docente</h3>
-          <div className="prose prose-sm max-w-none text-blue-900 dark:text-blue-100 prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-p:leading-relaxed">
+          <div className="prose prose-sm max-w-none text-blue-900 dark:text-blue-100 prose-headings:text-blue-900 dark:prose-headings:text-blue-100 prose-strong:text-blue-900 dark:prose-strong:text-blue-100 prose-code:text-blue-800 dark:prose-code:text-blue-200 prose-code:bg-blue-100/50 dark:prose-code:bg-blue-800/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-p:leading-relaxed prose-li:marker:text-blue-500 dark:prose-li:marker:text-blue-400">
             <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
               {delivery.feedback}
             </ReactMarkdown>
           </div>
-          {delivery.grade && (
-             <div className="mt-4 pt-3 border-t border-blue-200 dark:border-blue-800/50 text-lg font-bold text-blue-700 dark:text-blue-400">
-               Nota: {delivery.grade}
-             </div>
-          )}
+          <div className="mt-4 pt-3 border-t border-blue-200 dark:border-blue-800/50 flex items-center justify-between">
+             {delivery.grade && (
+                 <div className="text-lg font-bold text-blue-700 dark:text-blue-400">
+                   Nota: {delivery.grade}
+                 </div>
+             )}
+             {delivery.verdict && (
+                 <div className={`px-3 py-1 text-sm font-bold rounded-full ${
+                     delivery.verdict === 'Aprobado' 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' 
+                        : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
+                 }`}>
+                     {delivery.verdict}
+                 </div>
+             )}
+          </div>
         </div>
       )}
 

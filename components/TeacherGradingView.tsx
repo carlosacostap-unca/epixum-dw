@@ -2,7 +2,7 @@
 
 import { Delivery, Assignment } from "@/types";
 import { useState } from "react";
-import { getDeliveryDownloadUrl, gradeDelivery } from "@/lib/actions";
+import { getDeliveryDownloadUrl, gradeDelivery, evaluateDeliveryWithAI } from "@/lib/actions";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
@@ -27,10 +27,38 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
       ? (delivery.feedback || "") 
       : (delivery.aiFeedback || "")
   );
+  const [verdict, setVerdict] = useState<'Aprobado' | 'Corregir y reenviar' | ''>(
+    delivery.verdict || delivery.aiVerdict || ''
+  );
   const [isGrading, setIsGrading] = useState(false);
+  const [isEvaluatingAI, setIsEvaluatingAI] = useState(false);
   
   const student = delivery.expand?.student;
   const studentName = student?.name || "Estudiante desconocido";
+
+  const handleEvaluateAI = async () => {
+    setIsEvaluatingAI(true);
+    try {
+      const result = await evaluateDeliveryWithAI(delivery.id);
+      if (result.success && result.data) {
+        // Update local state to show the result immediately without a full refresh if preferred
+        // or just let router.refresh() handle it. We'll update the local inputs:
+        setGrade(result.data.aiGrade.toString());
+        setFeedback(result.data.aiFeedback);
+        if (result.data.aiVerdict) {
+          setVerdict(result.data.aiVerdict as any);
+        }
+        router.refresh();
+      } else {
+        alert(result.error || "No se pudo realizar la evaluación por IA");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error inesperado al evaluar con IA");
+    } finally {
+      setIsEvaluatingAI(false);
+    }
+  };
 
   const handleDownloadDelivery = async (deliveryId: string) => {
     setDownloadingId(deliveryId);
@@ -57,6 +85,7 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
           const formData = new FormData();
           formData.append('grade', grade);
           formData.append('feedback', feedback);
+          if (verdict) formData.append('verdict', verdict);
           formData.append('assignmentId', assignment.id);
           
           const result = await gradeDelivery(delivery.id, formData);
@@ -144,13 +173,24 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                     Preevaluación de IA sugerida
                 </h4>
-                <div className="prose prose-sm max-w-none text-purple-900 dark:text-purple-100 prose-a:text-purple-600 dark:prose-a:text-purple-400 prose-p:leading-relaxed mb-6">
+                <div className="prose prose-sm max-w-none text-purple-900 dark:text-purple-100 prose-headings:text-purple-900 dark:prose-headings:text-purple-100 prose-strong:text-purple-900 dark:prose-strong:text-purple-100 prose-code:text-purple-800 dark:prose-code:text-purple-200 prose-code:bg-purple-100/50 dark:prose-code:bg-purple-800/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-a:text-purple-600 dark:prose-a:text-purple-400 prose-p:leading-relaxed mb-6 prose-li:marker:text-purple-500 dark:prose-li:marker:text-purple-400">
                     <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
                         {delivery.aiFeedback}
                     </ReactMarkdown>
                 </div>
-                <div className="text-lg font-bold text-purple-700 dark:text-purple-400">
-                    Nota sugerida: <span className="text-2xl">{delivery.aiGrade}</span>/10
+                <div className="flex items-center gap-4 text-lg font-bold text-purple-700 dark:text-purple-400">
+                    <div>
+                        Nota sugerida: <span className="text-2xl">{delivery.aiGrade}</span>/10
+                    </div>
+                    {delivery.aiVerdict && (
+                        <div className={`px-3 py-1 text-sm font-bold rounded-full ${
+                            delivery.aiVerdict === 'Aprobado' 
+                               ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' 
+                               : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
+                        }`}>
+                            Veredicto sugerido: {delivery.aiVerdict}
+                        </div>
+                    )}
                 </div>
                 <p className="text-sm text-purple-600/70 dark:text-purple-400/70 mt-4 border-t border-purple-200/50 dark:border-purple-800/50 pt-3">
                     Estos valores se han copiado al formulario de abajo. Puedes modificarlos antes de guardar la calificación final. El estudiante no verá esta preevaluación de IA.
@@ -158,23 +198,63 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
             </div>
         )}
 
+        {delivery.status !== 'graded' && (
+            <div className="mb-8">
+                <button
+                    onClick={handleEvaluateAI}
+                    disabled={isEvaluatingAI}
+                    className="flex items-center justify-center gap-2 w-full md:w-auto px-6 py-3 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-300 dark:border-purple-700 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800/50 transition-colors font-medium disabled:opacity-50"
+                >
+                    {isEvaluatingAI ? (
+                        <>
+                            <span className="animate-spin h-5 w-5 border-2 border-purple-600 border-t-transparent rounded-full"></span>
+                            Generando evaluación...
+                        </>
+                    ) : (
+                        <>
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                            {delivery.aiGrade !== undefined && delivery.aiFeedback ? "Rehacer Preevaluación Asistida por IA" : "Realizar Preevaluación Asistida por IA"}
+                        </>
+                    )}
+                </button>
+            </div>
+        )}
+
         <form onSubmit={handleGradeSubmit} className="space-y-6 border-t border-zinc-200 dark:border-zinc-700 pt-8">
             <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Calificar Entrega</h3>
             
-            <div>
-                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                    Calificación (0-10)
-                </label>
-                <input 
-                    type="number" 
-                    min="0" 
-                    max="10" 
-                    step="0.1"
-                    value={grade}
-                    onChange={(e) => setGrade(e.target.value)}
-                    className="w-full md:w-1/3 px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
-                    required
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                        Calificación (0-10)
+                    </label>
+                    <input 
+                        type="number" 
+                        min="0" 
+                        max="10" 
+                        step="0.1"
+                        value={grade}
+                        onChange={(e) => setGrade(e.target.value)}
+                        className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+                        required
+                    />
+                </div>
+
+                <div>
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                        Veredicto
+                    </label>
+                    <select
+                        value={verdict}
+                        onChange={(e) => setVerdict(e.target.value as any)}
+                        className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+                        required
+                    >
+                        <option value="" disabled>Seleccione un veredicto</option>
+                        <option value="Aprobado">Aprobado</option>
+                        <option value="Corregir y reenviar">Corregir y reenviar</option>
+                    </select>
+                </div>
             </div>
             
             <div>

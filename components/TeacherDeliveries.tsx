@@ -57,6 +57,9 @@ export default function TeacherDeliveries({ deliveries, assignment }: TeacherDel
                 Nota
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-300 uppercase tracking-wider">
+                Veredicto
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-zinc-500 dark:text-zinc-300 uppercase tracking-wider">
                 Acciones
               </th>
             </tr>
@@ -104,7 +107,18 @@ export default function TeacherDeliveries({ deliveries, assignment }: TeacherDel
                       </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
-                    {delivery.grade !== undefined ? delivery.grade : '-'}
+                    {delivery.grade !== undefined && delivery.grade !== null ? delivery.grade : '-'}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
+                    {delivery.verdict ? (
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            delivery.verdict === 'Aprobado' 
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' 
+                                : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
+                        }`}>
+                            {delivery.verdict}
+                        </span>
+                    ) : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <Link 
@@ -119,7 +133,7 @@ export default function TeacherDeliveries({ deliveries, assignment }: TeacherDel
               })
             ) : (
               <tr>
-                <td colSpan={4} className="px-6 py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                <td colSpan={5} className="px-6 py-4 text-center text-sm text-zinc-500 dark:text-zinc-400">
                   No hay entregas registradas
                 </td>
               </tr>

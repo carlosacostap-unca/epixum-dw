@@ -57,6 +57,7 @@ IMPORTANTE SOBRE EL PERFIL DEL ESTUDIANTE:
 Los estudiantes son alumnos del 1er año de la Tecnicatura en Diseño de Software y acaban de comenzar el cursado de su carrera.
 Aún no han visto programación (lo verán el próximo semestre). En este semestre tienen diseño web, introducción a metodologías ágiles y diseño de experiencia de usuario.
 Por lo tanto, tu evaluación no debe ser estricta ni exigir conocimientos técnicos avanzados o de programación que aún no poseen. Sé comprensivo, alentador y evalúa de acuerdo a este nivel inicial.
+También ten en cuenta por favor que este es el primer trabajo práctico. Los alumnos todavía no vieron nada de HTML ni de CSS.
 ${extraContext}
 
 Detalles del Trabajo Práctico:
@@ -67,10 +68,13 @@ Tipo: ${assignment.type}
 ${studentWork}
 
 Tu tarea es proporcionar una calificación del 1 al 10 y un feedback constructivo y alentador para el estudiante.
+El alumno aprueba con una nota mayor o igual a 7. Caso contrario debe corregir y reenviar su trabajo.
+Por favor si el alumno aprueba, dile que no es necesario que envíe nuevamente su trabajo.
 Usa formato Markdown (negritas, listas, saltos de línea) en el feedback para que sea fácil de leer y estructurado.
 Devuelve el resultado estrictamente en formato JSON con la siguiente estructura, sin markdown en el bloque general ni comillas invertidas:
 {
   "grade": número (1 al 10),
+  "verdict": "Aprobado" o "Corregir y reenviar",
   "feedback": "Tu devolución detallada aquí (puedes incluir \\n y markdown)"
 }
 `;
@@ -91,7 +95,8 @@ Devuelve el resultado estrictamente en formato JSON con la siguiente estructura,
     
     return {
       aiGrade: result.grade,
-      aiFeedback: result.feedback
+      aiFeedback: result.feedback,
+      aiVerdict: result.verdict
     };
   } catch (error) {
     console.error("Error generating AI evaluation:", error);

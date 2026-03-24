@@ -481,25 +481,6 @@ export async function createDelivery(formData: FormData) {
     }
     // ------------------------
     
-    // --- AI Preevaluation (Background) ---
-    if (status === 'submitted') {
-      // Execute in background without blocking the response
-      Promise.resolve().then(async () => {
-        try {
-          const bgPb = await createServerClient();
-          const assignment = await bgPb.collection('assignments').getOne<Assignment>(assignmentId);
-          const aiResult = await generateAIEvaluation(assignment, data.content, repositoryUrl);
-          if (aiResult) {
-            await bgPb.collection('deliveries').update(delivery.id, {
-              aiGrade: aiResult.aiGrade,
-              aiFeedback: aiResult.aiFeedback
-            });
-          }
-        } catch (aiError) {
-          console.error("AI Evaluation failed during creation in background:", aiError);
-        }
-      });
-    }
     // ------------------------
     
     revalidatePath(`/assignments/${assignmentId}`);
@@ -577,31 +558,6 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
     }
     // ------------------------
 
-    // --- AI Preevaluation (Background) ---
-    if (status === 'submitted') {
-      Promise.resolve().then(async () => {
-        try {
-          const bgPb = await createServerClient();
-          const currentDelivery = await bgPb.collection('deliveries').getOne(deliveryId);
-          const actualAssignmentId = assignmentId || currentDelivery.assignment;
-          const assignment = await bgPb.collection('assignments').getOne<Assignment>(actualAssignmentId);
-          const actualContent = data.content || currentDelivery.content;
-          const actualRepoUrl = repositoryUrl || currentDelivery.repositoryUrl;
-          
-          const aiResult = await generateAIEvaluation(assignment, actualContent, actualRepoUrl);
-          if (aiResult) {
-            await bgPb.collection('deliveries').update(deliveryId, {
-              aiGrade: aiResult.aiGrade,
-              aiFeedback: aiResult.aiFeedback
-            });
-          }
-        } catch (aiError) {
-          console.error("AI Evaluation failed during update in background:", aiError);
-        }
-      });
-    }
-    // ------------------------
-
     if (assignmentId) revalidatePath(`/assignments/${assignmentId}`);
     return { success: true, id: deliveryId };
   } catch (error) {
@@ -620,6 +576,7 @@ export async function gradeDelivery(deliveryId: string, formData: FormData) {
 
   const grade = formData.get('grade') as string;
   const feedback = formData.get('feedback') as string;
+  const verdict = formData.get('verdict') as string;
   const assignmentId = formData.get('assignmentId') as string;
 
   try {
@@ -628,6 +585,7 @@ export async function gradeDelivery(deliveryId: string, formData: FormData) {
     };
     if (grade) data.grade = parseFloat(grade);
     if (feedback) data.feedback = feedback;
+    if (verdict) data.verdict = verdict;
 
     await pb.collection('deliveries').update(deliveryId, data);
     
@@ -636,5 +594,43 @@ export async function gradeDelivery(deliveryId: string, formData: FormData) {
   } catch (error) {
     console.error('Failed to grade delivery:', error);
     return { success: false, error: 'Failed to grade delivery' };
+  }
+}
+
+export async function evaluateDeliveryWithAI(deliveryId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || (user.role !== 'docente' && user.role !== 'admin')) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  try {
+    const delivery = await pb.collection('deliveries').getOne(deliveryId, { expand: 'assignment' });
+    if (!delivery) {
+      return { success: false, error: 'Delivery not found' };
+    }
+
+    const assignment = delivery.expand?.assignment as Assignment;
+    if (!assignment) {
+      return { success: false, error: 'Assignment not found' };
+    }
+
+    const aiResult = await generateAIEvaluation(assignment, delivery.content, delivery.repositoryUrl);
+    if (!aiResult) {
+      return { success: false, error: 'Failed to generate AI evaluation' };
+    }
+
+    await pb.collection('deliveries').update(deliveryId, {
+      aiGrade: aiResult.aiGrade,
+      aiFeedback: aiResult.aiFeedback,
+      aiVerdict: aiResult.aiVerdict
+    });
+
+    revalidatePath(`/deliveries/${deliveryId}`);
+    return { success: true, data: aiResult };
+  } catch (error) {
+    console.error('Failed to evaluate delivery with AI:', error);
+    return { success: false, error: 'Failed to evaluate delivery with AI' };
   }
 }
