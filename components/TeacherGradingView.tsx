@@ -1,7 +1,7 @@
 "use client";
 
 import { Delivery, Assignment } from "@/types";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { getDeliveryDownloadUrl, gradeDelivery, evaluateDeliveryWithAI } from "@/lib/actions";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -32,6 +32,14 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
   );
   const [isGrading, setIsGrading] = useState(false);
   const [isEvaluatingAI, setIsEvaluatingAI] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [feedback]);
   
   const student = delivery.expand?.student;
   const studentName = student?.name || "Estudiante desconocido";
@@ -262,10 +270,11 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
                     Feedback para el estudiante
                 </label>
                 <textarea 
-                    rows={12}
+                    ref={textareaRef}
+                    rows={4}
                     value={feedback}
                     onChange={(e) => setFeedback(e.target.value)}
-                    className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 min-h-[250px] resize-y"
+                    className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 min-h-[150px] resize-none overflow-hidden"
                     placeholder="Escribe tus comentarios aquí..."
                     required
                 />
