@@ -262,10 +262,10 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
                     Feedback para el estudiante
                 </label>
                 <textarea 
-                    rows={6}
+                    rows={12}
                     value={feedback}
                     onChange={(e) => setFeedback(e.target.value)}
-                    className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+                    className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 min-h-[250px] resize-y"
                     placeholder="Escribe tus comentarios aquí..."
                     required
                 />
