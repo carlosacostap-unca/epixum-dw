@@ -113,12 +113,12 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="w-full max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8">
       <Link href={`/assignments/${assignment.id}`} className="text-blue-500 hover:underline mb-6 inline-block">&larr; Volver al Trabajo Práctico</Link>
       
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Left Column: Delivery Content */}
-        <div className="flex-1 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-6 md:p-8 shadow-sm">
+        <div className="flex-1 min-w-0 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-6 md:p-8 shadow-sm">
             <div className="flex justify-between items-center mb-8 border-b border-zinc-200 dark:border-zinc-700 pb-6">
                 <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                     Entrega de {studentName}
@@ -203,7 +203,7 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
         </div>
 
         {/* Right Column: Grading Form */}
-        <div className="w-full lg:w-[450px] shrink-0 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-6 md:p-8 shadow-sm h-fit sticky top-6">
+        <div className="flex-1 min-w-0 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-6 md:p-8 shadow-sm h-fit sticky top-6">
             <form onSubmit={handleGradeSubmit} className="space-y-6">
                 <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-6">Calificar Entrega</h3>
                 
