@@ -118,7 +118,7 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
       
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Left Column: Delivery Content */}
-        <div className="flex-1 min-w-0 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-6 md:p-8 shadow-sm">
+        <div className="flex-1 min-w-0 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-6 md:p-8 shadow-sm lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
             <div className="flex justify-between items-center mb-8 border-b border-zinc-200 dark:border-zinc-700 pb-6">
                 <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
                     Entrega de {studentName}
@@ -203,7 +203,7 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
         </div>
 
         {/* Right Column: Grading Form */}
-        <div className="flex-1 min-w-0 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-6 md:p-8 shadow-sm h-fit sticky top-6">
+        <div className="flex-1 min-w-0 bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-6 md:p-8 shadow-sm lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto">
             <form onSubmit={handleGradeSubmit} className="space-y-6">
                 <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 mb-6">Calificar Entrega</h3>
                 
