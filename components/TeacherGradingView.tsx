@@ -177,36 +177,7 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
                 )}
             </div>
 
-            {delivery.aiGrade !== undefined && delivery.aiFeedback && delivery.status !== 'graded' && (
-                <div className="mb-8 p-6 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl">
-                    <h4 className="flex items-center gap-2 text-lg font-semibold text-purple-800 dark:text-purple-300 mb-4">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                        Preevaluación de IA sugerida
-                    </h4>
-                    <div className="prose prose-sm max-w-none text-purple-900 dark:text-purple-100 prose-headings:text-purple-900 dark:prose-headings:text-purple-100 prose-strong:text-purple-900 dark:prose-strong:text-purple-100 prose-code:text-purple-800 dark:prose-code:text-purple-200 prose-code:bg-purple-100/50 dark:prose-code:bg-purple-800/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-a:text-purple-600 dark:prose-a:text-purple-400 prose-p:leading-relaxed mb-6 prose-li:marker:text-purple-500 dark:prose-li:marker:text-purple-400">
-                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
-                            {delivery.aiFeedback}
-                        </ReactMarkdown>
-                    </div>
-                    <div className="flex items-center gap-4 text-lg font-bold text-purple-700 dark:text-purple-400">
-                        <div>
-                            Nota sugerida: <span className="text-2xl">{delivery.aiGrade}</span>/10
-                        </div>
-                        {delivery.aiVerdict && (
-                            <div className={`px-3 py-1 text-sm font-bold rounded-full ${
-                                delivery.aiVerdict === 'Aprobado' 
-                                   ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300' 
-                                   : 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
-                            }`}>
-                                Veredicto sugerido: {delivery.aiVerdict}
-                            </div>
-                        )}
-                    </div>
-                    <p className="text-sm text-purple-600/70 dark:text-purple-400/70 mt-4 border-t border-purple-200/50 dark:border-purple-800/50 pt-3">
-                        Estos valores se han copiado al formulario de la derecha. Puedes modificarlos antes de guardar la calificación final. El estudiante no verá esta preevaluación de IA.
-                    </p>
-                </div>
-            )}
+            {/* Removed AI Pre-evaluation display section based on user request */}
 
             {delivery.status !== 'graded' && (
                 <div className="mb-2">
