@@ -66,7 +66,7 @@ export async function getResourceDownloadUrl(linkId: string) {
     let key = link.url;
     if (link.url.startsWith('http')) {
         const urlObj = new URL(link.url);
-        key = urlObj.pathname.split('/').pop() || '';
+        key = decodeURIComponent(urlObj.pathname.split('/').pop() || '');
     }
 
     if (!key) {
@@ -101,7 +101,7 @@ export async function getDeliveryDownloadUrl(deliveryId: string) {
     // Extract key from repositoryUrl
     // Assuming repositoryUrl is like https://endpoint/bucket/filename.zip
     const url = new URL(delivery.repositoryUrl);
-    const key = url.pathname.split('/').pop();
+    const key = decodeURIComponent(url.pathname.split('/').pop() || '');
 
     if (!key) {
         return { success: false, error: 'Invalid file key' };
