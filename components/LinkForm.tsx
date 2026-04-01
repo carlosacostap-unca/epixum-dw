@@ -40,7 +40,7 @@ export default function LinkForm({ link, classId, assignmentId, onClose, isEmbed
           if (res.success) {
             setSlides(res.slides);
             if (!selectedSlidePath && res.slides.length > 0 && !link) {
-              setSelectedSlidePath(res.slides[0].path);
+              setSelectedSlidePath(res.slides[0].key);
             }
           }
         })
@@ -52,7 +52,7 @@ export default function LinkForm({ link, classId, assignmentId, onClose, isEmbed
           if (res.success) {
             setNotes(res.notes);
             if (!selectedNotePath && res.notes.length > 0 && !link) {
-              setSelectedNotePath(res.notes[0].path);
+              setSelectedNotePath(res.notes[0].key);
             }
           }
         })
@@ -64,7 +64,7 @@ export default function LinkForm({ link, classId, assignmentId, onClose, isEmbed
           if (res.success) {
             setGuides(res.guides);
             if (!selectedGuidePath && res.guides.length > 0 && !link) {
-              setSelectedGuidePath(res.guides[0].path);
+              setSelectedGuidePath(res.guides[0].key);
             }
           }
         })
@@ -327,7 +327,7 @@ export default function LinkForm({ link, classId, assignmentId, onClose, isEmbed
               >
                 {slides.length === 0 && <option value="">No hay diapositivas disponibles</option>}
                 {slides.map(slide => (
-                  <option key={slide.path} value={slide.path}>
+                  <option key={slide.key} value={slide.key}>
                     {slide.title}
                   </option>
                 ))}
@@ -352,7 +352,7 @@ export default function LinkForm({ link, classId, assignmentId, onClose, isEmbed
               >
                 {notes.length === 0 && <option value="">No hay notas disponibles</option>}
                 {notes.map(note => (
-                  <option key={note.path} value={note.path}>
+                  <option key={note.key} value={note.key}>
                     {note.title}
                   </option>
                 ))}
@@ -377,7 +377,7 @@ export default function LinkForm({ link, classId, assignmentId, onClose, isEmbed
               >
                 {guides.length === 0 && <option value="">No hay apuntes disponibles</option>}
                 {guides.map(guide => (
-                  <option key={guide.path} value={guide.path}>
+                  <option key={guide.key} value={guide.key}>
                     {guide.title}
                   </option>
                 ))}

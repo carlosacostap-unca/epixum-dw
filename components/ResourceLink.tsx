@@ -10,6 +10,9 @@ interface ResourceLinkProps {
 export default function ResourceLink({ link }: ResourceLinkProps) {
   const isFileResource = (link: LinkType) => {
     return link.type === 'file' || 
+           link.type === 'slide' || 
+           link.type === 'note' || 
+           link.type === 'study-guide' || 
            link.url.includes('idrivee2.com') || 
            link.url.includes('epixum-javascript-storage');
   };

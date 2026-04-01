@@ -1,17 +1,41 @@
-import { promises as fs } from 'fs';
-import path from 'path';
 import ReactMarkdown from 'react-markdown';
 import Link from 'next/link';
+import { getClass } from '@/lib/data';
+import { getResourceDownloadUrl } from '@/lib/actions';
 
 export default async function SpeakerNotesPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const filePath = path.join(process.cwd(), 'public', 'slides', 'notes', `${id}.md`);
   
   let content = '';
   try {
-    content = await fs.readFile(filePath, 'utf-8');
+    const classData = await getClass(id);
+    const links = classData.expand?.links || [];
+    const noteLink = links.find((link: any) => link.type === 'note');
+
+    if (noteLink) {
+        let noteUrl = noteLink.url;
+        if (!noteUrl.startsWith('http')) {
+            const result = await getResourceDownloadUrl(noteLink.id);
+            if (result.success && result.url) {
+                noteUrl = result.url;
+            }
+        }
+        
+        if (noteUrl.startsWith('http')) {
+            const response = await fetch(noteUrl);
+            if (response.ok) {
+                content = await response.text();
+            } else {
+                throw new Error("Failed to fetch note content");
+            }
+        } else {
+            throw new Error("No valid URL for note");
+        }
+    } else {
+        throw new Error("No note link found");
+    }
   } catch (error) {
-    content = `# No se encontraron notas para esta clase.\n\nActualmente no hay notas de orador disponibles para la clase con ID: ${id}.`;
+    content = `# No se encontraron notas para esta clase.\n\nActualmente no hay notas de orador disponibles o hubo un error al cargarlas.`;
   }
 
   return (

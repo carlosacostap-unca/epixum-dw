@@ -330,7 +330,7 @@ export async function createLink(formData: FormData) {
 
   const title = formData.get('title') as string;
   const url = formData.get('url') as string;
-  const type = formData.get('type') as 'link' | 'file' || 'link';
+  const type = formData.get('type') as 'link' | 'file' | 'slide' | 'note' | 'study-guide' || 'link';
   const classId = formData.get('classId') as string;
   const assignmentId = formData.get('assignmentId') as string;
 
@@ -373,7 +373,7 @@ export async function updateLink(linkId: string, formData: FormData) {
 
   const title = formData.get('title') as string;
   const url = formData.get('url') as string;
-  const type = formData.get('type') as 'link' | 'file';
+  const type = formData.get('type') as 'link' | 'file' | 'slide' | 'note' | 'study-guide';
   const classId = formData.get('classId') as string;
   const assignmentId = formData.get('assignmentId') as string;
 

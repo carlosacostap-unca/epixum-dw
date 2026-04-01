@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, GetBucketCorsCommand, PutBucketCorsCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, GetBucketCorsCommand, PutBucketCorsCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 // Only instantiate S3Client if credentials exist, to avoid build errors
@@ -58,6 +58,38 @@ export async function getPresignedUploadUrl(filename: string, fileType: string) 
 
   const url = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
   return { url, fields: { key: filename } };
+}
+
+export async function listS3Objects(prefix: string) {
+  const bucketName = process.env.IDRIVE_BUCKET_NAME;
+  if (!bucketName) {
+    throw new Error("Bucket name not configured");
+  }
+
+  const command = new ListObjectsV2Command({
+    Bucket: bucketName,
+    Prefix: prefix,
+  });
+
+  const response = await s3Client.send(command);
+  return response.Contents || [];
+}
+
+export async function uploadToS3(key: string, buffer: Buffer, contentType: string) {
+  const bucketName = process.env.IDRIVE_BUCKET_NAME;
+  if (!bucketName) {
+    throw new Error("Bucket name not configured");
+  }
+
+  const command = new PutObjectCommand({
+    Bucket: bucketName,
+    Key: key,
+    Body: buffer,
+    ContentType: contentType,
+  });
+
+  await s3Client.send(command);
+  return key;
 }
 
 export async function getPresignedDownloadUrl(filename: string) {
