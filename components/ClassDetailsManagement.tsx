@@ -40,19 +40,31 @@ export default function ClassDetailsManagement({ user, classData, links, inquiri
     return link.type === 'slide';
   };
 
+  const isNoteResource = (link: LinkType) => {
+    return link.type === 'note';
+  };
+
+  const isGuideResource = (link: LinkType) => {
+    return link.type === 'study-guide';
+  };
+
+  const requiresPresignedUrl = (link: LinkType) => {
+    return isFileResource(link) || isSlideResource(link) || isNoteResource(link) || isGuideResource(link);
+  };
+
   const handleResourceClick = async (e: React.MouseEvent, link: LinkType) => {
-    if (isFileResource(link)) {
+    if (requiresPresignedUrl(link)) {
         e.preventDefault();
         try {
             const result = await getResourceDownloadUrl(link.id);
             if (result.success && result.url) {
                 window.open(result.url, '_blank');
             } else {
-                alert("No se pudo acceder al archivo.");
+                alert("No se pudo acceder al recurso.");
             }
         } catch (error) {
             console.error(error);
-            alert("Error al acceder al archivo.");
+            alert("Error al acceder al recurso.");
         }
     }
   };
@@ -132,9 +144,9 @@ export default function ClassDetailsManagement({ user, classData, links, inquiri
                  </div>
 
                 <a 
-                    href={isFileResource(link) ? '#' : link.url} 
-                    target={isFileResource(link) ? undefined : "_blank"}
-                    rel={isFileResource(link) ? undefined : "noopener noreferrer"}
+                    href={requiresPresignedUrl(link) ? '#' : link.url} 
+                    target={requiresPresignedUrl(link) ? undefined : "_blank"}
+                    rel={requiresPresignedUrl(link) ? undefined : "noopener noreferrer"}
                     onClick={(e) => handleResourceClick(e, link)}
                     className="block h-full"
                 >
@@ -142,29 +154,42 @@ export default function ClassDetailsManagement({ user, classData, links, inquiri
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                         isFileResource(link) ? 'bg-purple-100 text-purple-600 dark:bg-purple-900 dark:text-purple-200' : 
                         isSlideResource(link) ? 'bg-orange-100 text-orange-600 dark:bg-orange-900 dark:text-orange-200' :
+                        isNoteResource(link) ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900 dark:text-yellow-200' :
+                        isGuideResource(link) ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-200' :
                         'bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-200'
                     }`}>
-                        {isFileResource(link) ? 'ARCHIVO' : isSlideResource(link) ? 'DIAPOSITIVAS' : 'LINK'}
+                        {isFileResource(link) ? 'ARCHIVO' : 
+                         isSlideResource(link) ? 'DIAPOSITIVAS' : 
+                         isNoteResource(link) ? 'NOTA DE ORADOR' : 
+                         isGuideResource(link) ? 'APUNTE' : 'LINK'}
                     </span>
+                    <div className="p-2 bg-zinc-50 dark:bg-zinc-800/50 rounded-lg">
                     {isFileResource(link) ? (
                         <svg className="w-5 h-5 text-zinc-400 group-hover:text-purple-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                     ) : isSlideResource(link) ? (
                         <svg className="w-5 h-5 text-zinc-400 group-hover:text-orange-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 13v-1m4 1v-3m4 3V8M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
                         </svg>
+                    ) : isNoteResource(link) ? (
+                        <svg className="w-5 h-5 text-zinc-400 group-hover:text-yellow-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    ) : isGuideResource(link) ? (
+                        <svg className="w-5 h-5 text-zinc-400 group-hover:text-indigo-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
                     ) : (
                         <svg className="w-5 h-5 text-zinc-400 group-hover:text-blue-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
                     )}
                     </div>
+                    </div>
                     <h3 className={`text-lg font-bold transition-colors pr-8 ${
                         isFileResource(link) ? 'group-hover:text-purple-600 dark:group-hover:text-purple-400' : 
                         isSlideResource(link) ? 'group-hover:text-orange-600 dark:group-hover:text-orange-400' :
+                        isNoteResource(link) ? 'group-hover:text-yellow-600 dark:group-hover:text-yellow-400' :
+                        isGuideResource(link) ? 'group-hover:text-indigo-600 dark:group-hover:text-indigo-400' :
                         'group-hover:text-blue-600 dark:group-hover:text-blue-400'
                     }`}>
                     {link.title}
                     </h3>
                     <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-2 truncate">
-                        {isFileResource(link) ? link.url.split('/').pop() : link.url}
+                        {requiresPresignedUrl(link) ? link.url.split('/').pop() : link.url}
                     </p>
                 </a>
               </div>

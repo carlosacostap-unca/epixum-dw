@@ -21,19 +21,35 @@ export default function ClassDetailsStudent({ user, classData, links, inquiries 
            link.url.includes('epixum-javascript-storage');
   };
 
+  const isSlideResource = (link: LinkType) => {
+    return link.type === 'slide';
+  };
+
+  const isNoteResource = (link: LinkType) => {
+    return link.type === 'note';
+  };
+
+  const isGuideResource = (link: LinkType) => {
+    return link.type === 'study-guide';
+  };
+
+  const requiresPresignedUrl = (link: LinkType) => {
+    return isFileResource(link) || isSlideResource(link) || isNoteResource(link) || isGuideResource(link);
+  };
+
   const handleResourceClick = async (e: React.MouseEvent, link: LinkType) => {
-    if (isFileResource(link)) {
+    if (requiresPresignedUrl(link)) {
         e.preventDefault();
         try {
             const result = await getResourceDownloadUrl(link.id);
             if (result.success && result.url) {
                 window.open(result.url, '_blank');
             } else {
-                alert("No se pudo acceder al archivo.");
+                alert("No se pudo acceder al recurso.");
             }
         } catch (error) {
             console.error(error);
-            alert("Error al acceder al archivo.");
+            alert("Error al acceder al recurso.");
         }
     }
   };

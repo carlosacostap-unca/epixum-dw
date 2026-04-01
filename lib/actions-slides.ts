@@ -1,7 +1,7 @@
 "use server";
 
 import path from 'path';
-import { listS3Objects, uploadToS3, getPresignedDownloadUrl, deleteFromS3 } from './s3';
+import { listS3Objects, uploadToS3, deleteFromS3 } from './s3';
 import { revalidatePath } from 'next/cache';
 
 export interface SlideOption {
@@ -59,11 +59,9 @@ export async function getAvailableSlides() {
 
         title = `${title} (${ext.replace('.', '')})`;
         
-        const downloadUrl = await getPresignedDownloadUrl(obj.Key);
-
         slides.push({
           filename: file,
-          path: downloadUrl,
+          path: '',
           key: obj.Key,
           title: title
         });
@@ -98,11 +96,9 @@ export async function getAvailableNotes() {
 
         title = `${title} (${ext.replace('.', '')})`;
 
-        const downloadUrl = await getPresignedDownloadUrl(obj.Key);
-
         notes.push({
           filename: file,
-          path: downloadUrl,
+          path: '',
           key: obj.Key,
           title: title
         });
@@ -137,11 +133,9 @@ export async function getAvailableStudyGuides() {
 
         title = `${title} (${ext.replace('.', '')})`;
 
-        const downloadUrl = await getPresignedDownloadUrl(obj.Key);
-
         guides.push({
           filename: file,
-          path: downloadUrl,
+          path: '',
           key: obj.Key,
           title: title
         });
