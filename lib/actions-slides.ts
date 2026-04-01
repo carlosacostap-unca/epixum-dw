@@ -1,7 +1,8 @@
 "use server";
 
 import path from 'path';
-import { listS3Objects, uploadToS3, getPresignedDownloadUrl } from './s3';
+import { listS3Objects, uploadToS3, getPresignedDownloadUrl, deleteFromS3 } from './s3';
+import { revalidatePath } from 'next/cache';
 
 export interface SlideOption {
   filename: string;
@@ -22,6 +23,17 @@ export interface StudyGuideOption {
   path: string;
   key: string;
   title: string;
+}
+
+export async function deleteResource(key: string) {
+  try {
+    await deleteFromS3(key);
+    revalidatePath('/resources');
+    return { success: true, message: "Recurso eliminado correctamente" };
+  } catch (error) {
+    console.error("Error deleting resource from S3:", error);
+    return { success: false, error: "Error al eliminar el recurso" };
+  }
 }
 
 export async function getAvailableSlides() {

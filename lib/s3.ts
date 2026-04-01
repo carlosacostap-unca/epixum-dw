@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand, GetBucketCorsCommand, PutBucketCorsCommand, ListObjectsV2Command } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, GetBucketCorsCommand, PutBucketCorsCommand, ListObjectsV2Command, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 // Only instantiate S3Client if credentials exist, to avoid build errors
@@ -86,6 +86,21 @@ export async function uploadToS3(key: string, buffer: Buffer, contentType: strin
     Key: key,
     Body: buffer,
     ContentType: contentType,
+  });
+
+  await s3Client.send(command);
+  return key;
+}
+
+export async function deleteFromS3(key: string) {
+  const bucketName = process.env.IDRIVE_BUCKET_NAME;
+  if (!bucketName) {
+    throw new Error("Bucket name not configured");
+  }
+
+  const command = new DeleteObjectCommand({
+    Bucket: bucketName,
+    Key: key,
   });
 
   await s3Client.send(command);

@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/pocketbase-server";
 import { getAvailableSlides, getAvailableNotes, getAvailableStudyGuides } from "@/lib/actions-slides";
 import Link from "next/link";
 import ResourceUploader from "@/components/ResourceUploader";
+import DeleteResourceButton from "@/components/DeleteResourceButton";
 
 export const dynamic = 'force-dynamic';
 
@@ -48,13 +49,14 @@ export default async function ResourcesPage() {
             {slides && slides.length > 0 ? (
               <ul className="space-y-3">
                 {slides.map((slide, index) => (
-                  <li key={index}>
-                    <Link href={slide.path} target="_blank" className="flex items-center p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl hover:bg-cyan-50 dark:hover:bg-cyan-900/20 hover:border-cyan-200 dark:hover:border-cyan-800 border border-transparent transition-all group">
-                      <svg className="w-5 h-5 text-zinc-400 group-hover:text-cyan-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  <li key={index} className="flex items-center gap-2">
+                    <Link href={slide.path} target="_blank" className="flex-1 flex items-center p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl hover:bg-cyan-50 dark:hover:bg-cyan-900/20 hover:border-cyan-200 dark:hover:border-cyan-800 border border-transparent transition-all group overflow-hidden">
+                      <svg className="w-5 h-5 text-zinc-400 group-hover:text-cyan-500 mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                       <span className="font-medium text-zinc-700 dark:text-zinc-300 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 truncate">
                         {slide.title}
                       </span>
                     </Link>
+                    {isTeacher && <DeleteResourceButton fileKey={slide.key} />}
                   </li>
                 ))}
               </ul>
@@ -87,13 +89,14 @@ export default async function ResourcesPage() {
             {notes && notes.length > 0 ? (
               <ul className="space-y-3">
                 {notes.map((note, index) => (
-                  <li key={index}>
-                    <Link href={note.path} target="_blank" className="flex items-center p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl hover:bg-yellow-50 dark:hover:bg-yellow-900/20 hover:border-yellow-200 dark:hover:border-yellow-800 border border-transparent transition-all group">
-                      <svg className="w-5 h-5 text-zinc-400 group-hover:text-yellow-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                  <li key={index} className="flex items-center gap-2">
+                    <Link href={note.path} target="_blank" className="flex-1 flex items-center p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl hover:bg-yellow-50 dark:hover:bg-yellow-900/20 hover:border-yellow-200 dark:hover:border-yellow-800 border border-transparent transition-all group overflow-hidden">
+                      <svg className="w-5 h-5 text-zinc-400 group-hover:text-yellow-500 mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                       <span className="font-medium text-zinc-700 dark:text-zinc-300 group-hover:text-yellow-600 dark:group-hover:text-yellow-400 truncate">
                         {note.title}
                       </span>
                     </Link>
+                    {isTeacher && <DeleteResourceButton fileKey={note.key} />}
                   </li>
                 ))}
               </ul>
@@ -126,13 +129,14 @@ export default async function ResourcesPage() {
             {guides && guides.length > 0 ? (
               <ul className="space-y-3">
                 {guides.map((guide, index) => (
-                  <li key={index}>
-                    <Link href={guide.path} target="_blank" className="flex items-center p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-200 dark:hover:border-purple-800 border border-transparent transition-all group">
-                      <svg className="w-5 h-5 text-zinc-400 group-hover:text-purple-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  <li key={index} className="flex items-center gap-2">
+                    <Link href={guide.path} target="_blank" className="flex-1 flex items-center p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-xl hover:bg-purple-50 dark:hover:bg-purple-900/20 hover:border-purple-200 dark:hover:border-purple-800 border border-transparent transition-all group overflow-hidden">
+                      <svg className="w-5 h-5 text-zinc-400 group-hover:text-purple-500 mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                       <span className="font-medium text-zinc-700 dark:text-zinc-300 group-hover:text-purple-600 dark:group-hover:text-purple-400 truncate">
                         {guide.title}
                       </span>
                     </Link>
+                    {isTeacher && <DeleteResourceButton fileKey={guide.key} />}
                   </li>
                 ))}
               </ul>
