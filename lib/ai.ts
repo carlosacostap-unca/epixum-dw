@@ -97,12 +97,32 @@ Devuelve el resultado estrictamente en formato JSON con la siguiente estructura,
     const resultText = response.choices[0].message.content;
     if (!resultText) return null;
 
+    console.log("AI Response JSON:", resultText);
     const result = JSON.parse(resultText);
     
+    // La IA a veces traduce las claves del JSON si el prompt está en español
+    const extractedGrade = result.grade ?? result.calificacion ?? result.Calificacion ?? result.nota ?? result.Nota;
+    const extractedFeedback = result.feedback ?? result.devolucion ?? result.Feedback ?? result.comentarios ?? result.Comentarios;
+    let extractedVerdict = result.verdict ?? result.veredicto ?? result.Verdict ?? result.Veredicto;
+
+    // Normalizar el veredicto para que coincida exactamente con los valores permitidos
+    if (typeof extractedVerdict === 'string') {
+      const vLower = extractedVerdict.toLowerCase();
+      if (vLower.includes('aprobad')) extractedVerdict = 'Aprobado';
+      else if (vLower.includes('corregir') || vLower.includes('reenviar')) extractedVerdict = 'Corregir y reenviar';
+    }
+
+    // Normalizar la nota si viene como string (ej. "8/10")
+    let numericGrade = extractedGrade;
+    if (typeof extractedGrade === 'string') {
+      const match = extractedGrade.match(/(\d+(\.\d+)?)/);
+      if (match) numericGrade = Number(match[1]);
+    }
+    
     return {
-      aiGrade: result.grade,
-      aiFeedback: result.feedback,
-      aiVerdict: result.verdict
+      aiGrade: numericGrade,
+      aiFeedback: extractedFeedback,
+      aiVerdict: extractedVerdict
     };
   } catch (error) {
     console.error("Error generating AI evaluation:", error);
