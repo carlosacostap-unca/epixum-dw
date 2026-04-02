@@ -76,7 +76,7 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
         setGrade(result.data.aiGrade?.toString() || "");
         setFeedback(result.data.aiFeedback || "");
         if (result.data.aiVerdict) {
-          setVerdict(result.data.aiVerdict as any);
+          setVerdict(result.data.aiVerdict as 'Aprobado' | 'Corregir y reenviar');
         }
         router.refresh();
       } else {
