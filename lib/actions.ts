@@ -604,7 +604,7 @@ export async function gradeDelivery(deliveryId: string, formData: FormData) {
   }
 }
 
-export async function evaluateDeliveryWithAI(deliveryId: string) {
+export async function evaluateDeliveryWithAI(deliveryId: string, customContent?: string) {
   const pb = await createServerClient();
   const user = pb.authStore.model;
 
@@ -623,16 +623,23 @@ export async function evaluateDeliveryWithAI(deliveryId: string) {
       return { success: false, error: 'Assignment not found' };
     }
 
-    const aiResult = await generateAIEvaluation(assignment, delivery.content, delivery.repositoryUrl);
+    const contentToEvaluate = customContent || delivery.content;
+    const aiResult = await generateAIEvaluation(assignment, contentToEvaluate, delivery.repositoryUrl);
     if (!aiResult) {
       return { success: false, error: 'Failed to generate AI evaluation' };
     }
 
-    await pb.collection('deliveries').update(deliveryId, {
+    // Opcional: Si el usuario proveyó contenido custom (el editado), podríamos guardarlo
+    const updateData: any = {
       aiGrade: aiResult.aiGrade,
       aiFeedback: aiResult.aiFeedback,
       aiVerdict: aiResult.aiVerdict
-    });
+    };
+    if (customContent) {
+      updateData.content = customContent;
+    }
+
+    await pb.collection('deliveries').update(deliveryId, updateData);
 
     revalidatePath(`/deliveries/${deliveryId}`);
     return { success: true, data: aiResult };

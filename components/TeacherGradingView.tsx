@@ -3,6 +3,7 @@
 import { Delivery, Assignment } from "@/types";
 import { useState, useRef, useEffect } from "react";
 import { getDeliveryDownloadUrl, gradeDelivery, evaluateDeliveryWithAI } from "@/lib/actions";
+import { processDeliveryZip } from "@/lib/actions-zip";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
@@ -32,6 +33,10 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
   );
   const [isGrading, setIsGrading] = useState(false);
   const [isEvaluatingAI, setIsEvaluatingAI] = useState(false);
+  const [isProcessingZip, setIsProcessingZip] = useState(false);
+  const [extractedCode, setExtractedCode] = useState<string>(
+    delivery.content && typeof delivery.content === 'string' ? delivery.content : ""
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -44,10 +49,35 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
   const student = delivery.expand?.student;
   const studentName = student?.name || "Estudiante desconocido";
 
+  const handleProcessZip = async () => {
+    if (!confirm("Esto extraerá el contenido HTML/CSS del ZIP y borrará el archivo original. ¿Deseas continuar?")) {
+      return;
+    }
+    
+    setIsProcessingZip(true);
+    try {
+      const result = await processDeliveryZip(delivery.id);
+      if (result.success && result.extractedContent) {
+        setExtractedCode(result.extractedContent);
+        router.refresh();
+      } else {
+        alert(result.error || "No se pudo procesar el archivo ZIP");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Error inesperado al procesar el ZIP");
+    } finally {
+      setIsProcessingZip(false);
+    }
+  };
+
   const handleEvaluateAI = async () => {
     setIsEvaluatingAI(true);
     try {
-      const result = await evaluateDeliveryWithAI(delivery.id);
+      const result = await evaluateDeliveryWithAI(
+        delivery.id, 
+        assignment.type === 'file_upload' ? extractedCode : undefined
+      );
       if (result.success && result.data) {
         // Update local state to show the result immediately without a full refresh if preferred
         // or just let router.refresh() handle it. We'll update the local inputs:
@@ -151,27 +181,61 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
                     </div>
                 ) : (
                     <div className="bg-zinc-50 dark:bg-zinc-900 p-6 rounded-lg border border-zinc-200 dark:border-zinc-700 flex flex-col gap-4">
-                        <p className="text-base text-zinc-700 dark:text-zinc-300">
-                            El estudiante ha subido un archivo/carpeta comprimida en formato ZIP.
-                        </p>
+                        {delivery.content && typeof delivery.content === 'string' ? (
+                            <div className="space-y-2">
+                                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                                    Entrega del estudiante (Código Extraído)
+                                </label>
+                                <textarea
+                                    value={extractedCode}
+                                    onChange={(e) => setExtractedCode(e.target.value)}
+                                    className="w-full px-4 py-3 font-mono text-sm border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 min-h-[300px] resize-y"
+                                />
+                            </div>
+                        ) : (
+                            <p className="text-base text-zinc-700 dark:text-zinc-300">
+                                El estudiante ha subido un archivo/carpeta comprimida en formato ZIP.
+                            </p>
+                        )}
+                        
                         {delivery.repositoryUrl && (
-                        <button
-                            onClick={() => handleDownloadDelivery(delivery.id)}
-                            disabled={downloadingId === delivery.id}
-                            className="flex items-center justify-center gap-2 w-full md:w-auto px-6 py-3 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors font-medium disabled:opacity-50"
-                        >
-                            {downloadingId === delivery.id ? (
-                                <>
-                                    <span className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></span>
-                                    Preparando descarga...
-                                </>
-                            ) : (
-                                <>
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                                    Descargar Entrega (.zip)
-                                </>
-                            )}
-                        </button>
+                            <div className="flex flex-col sm:flex-row gap-3 mt-2">
+                                <button
+                                    onClick={() => handleDownloadDelivery(delivery.id)}
+                                    disabled={downloadingId === delivery.id}
+                                    className="flex items-center justify-center gap-2 w-full md:w-auto px-6 py-3 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors font-medium disabled:opacity-50"
+                                >
+                                    {downloadingId === delivery.id ? (
+                                        <>
+                                            <span className="animate-spin h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full"></span>
+                                            Preparando descarga...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                            Descargar ZIP
+                                        </>
+                                    )}
+                                </button>
+
+                                <button
+                                    onClick={handleProcessZip}
+                                    disabled={isProcessingZip}
+                                    className="flex items-center justify-center gap-2 w-full md:w-auto px-6 py-3 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors font-medium disabled:opacity-50"
+                                >
+                                    {isProcessingZip ? (
+                                        <>
+                                            <span className="animate-spin h-5 w-5 border-2 border-amber-600 border-t-transparent rounded-full"></span>
+                                            Procesando ZIP...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                                            Extraer y ver contenido
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         )}
                     </div>
                 )}

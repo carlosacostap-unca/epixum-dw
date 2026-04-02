@@ -31,6 +31,8 @@ export async function generateAIEvaluation(assignment: Assignment, deliveryConte
         studentWork += `Pregunta ${idx + 1}: ${q.text}\n`;
         studentWork += `Respuesta: ${answers[q.id] || 'Sin respuesta'}\n\n`;
       });
+    } else if (assignment.type === 'file_upload' && deliveryContent && typeof deliveryContent === 'string') {
+      studentWork = `El estudiante ha entregado el siguiente código fuente y estructura de archivos:\n\n${deliveryContent}`;
     } else if (repositoryUrl) {
       studentWork = `El estudiante ha entregado un archivo/repositorio. URL: ${repositoryUrl}\n(Nota: La IA no puede leer directamente el contenido de este archivo zip, pero puedes evaluar el hecho de que se haya entregado si es necesario, o pedirle al profesor que lo revise manualmente).`;
     }
