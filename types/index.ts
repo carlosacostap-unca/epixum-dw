@@ -54,6 +54,7 @@ export interface Assignment extends BaseModel {
   dueDate?: string;
   type?: AssignmentType;
   questions?: Question[];
+  aiPrompt?: string;
   // Expanding relations
   expand?: {
     links?: Link[];

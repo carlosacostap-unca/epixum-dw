@@ -93,6 +93,16 @@ export default function AssignmentDetailsManagement({ user, assignment, links, i
           className="prose dark:prose-invert max-w-3xl mb-8"
           dangerouslySetInnerHTML={{ __html: assignment.description }}
         />
+        
+        {assignment.type === 'file_upload' && assignment.aiPrompt && (
+          <div className="mb-8 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg max-w-3xl">
+            <h3 className="text-sm font-bold text-blue-800 dark:text-blue-300 mb-2 flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              Prompt de Preevaluación (IA)
+            </h3>
+            <p className="text-sm text-blue-900 dark:text-blue-200 whitespace-pre-wrap">{assignment.aiPrompt}</p>
+          </div>
+        )}
       </header>
 
       <div className="space-y-6">

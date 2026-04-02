@@ -37,6 +37,10 @@ export async function generateAIEvaluation(assignment: Assignment, deliveryConte
 
     let extraContext = "";
     
+    if (assignment.aiPrompt) {
+      extraContext += `\nINSTRUCCIONES ESPECÍFICAS DEL PROFESOR PARA ESTA EVALUACIÓN:\n${assignment.aiPrompt}\n\n`;
+    }
+
     // Si es el Trabajo Práctico 1, leemos el apunte y lo añadimos al contexto
     const titleLower = assignment.title.toLowerCase();
     if (titleLower.includes('trabajo práctico 1') || titleLower.includes('tp1') || titleLower.includes('tp 1')) {

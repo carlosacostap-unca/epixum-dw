@@ -231,6 +231,7 @@ export async function createAssignment(formData: FormData) {
   const dueDate = formData.get('dueDate') as string;
   const type = formData.get('type') as string;
   const questionsStr = formData.get('questions') as string;
+  const aiPrompt = formData.get('aiPrompt') as string;
 
   if (!title) {
      return { success: false, error: 'Title is required' };
@@ -243,6 +244,7 @@ export async function createAssignment(formData: FormData) {
       type,
     };
     if (dueDate) data.dueDate = new Date(dueDate).toISOString();
+    if (aiPrompt) data.aiPrompt = aiPrompt;
     if (questionsStr) {
       try {
         data.questions = JSON.parse(questionsStr);
@@ -273,6 +275,7 @@ export async function updateAssignment(assignmentId: string, formData: FormData)
   const dueDate = formData.get('dueDate') as string;
   const type = formData.get('type') as string;
   const questionsStr = formData.get('questions') as string;
+  const aiPrompt = formData.get('aiPrompt') as string;
 
   try {
     const data: any = {
@@ -280,6 +283,10 @@ export async function updateAssignment(assignmentId: string, formData: FormData)
       description,
       type,
     };
+    
+    // Explicitly update aiPrompt, clearing it if not present
+    data.aiPrompt = aiPrompt || "";
+
     if (dueDate) data.dueDate = new Date(dueDate).toISOString();
     if (questionsStr) {
       try {

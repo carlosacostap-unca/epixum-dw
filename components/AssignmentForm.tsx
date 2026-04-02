@@ -20,6 +20,7 @@ export default function AssignmentForm({ assignment, onClose, isEmbedded = false
   const [description, setDescription] = useState(assignment?.description || "");
   const [type, setType] = useState<AssignmentType>(assignment?.type || "file_upload");
   const [questions, setQuestions] = useState<Question[]>(assignment?.questions || []);
+  const [aiPrompt, setAiPrompt] = useState(assignment?.aiPrompt || "");
 
   const handleAddQuestion = () => {
     setQuestions([...questions, { id: uuidv4(), text: "" }]);
@@ -40,6 +41,7 @@ export default function AssignmentForm({ assignment, onClose, isEmbedded = false
       // Ensure description is included in formData
       formData.set("description", description);
       formData.set("type", type);
+      formData.set("aiPrompt", aiPrompt);
       
       if (type === "questionnaire") {
         formData.set("questions", JSON.stringify(questions));
@@ -116,6 +118,24 @@ export default function AssignmentForm({ assignment, onClose, isEmbedded = false
           <option value="questionnaire">Cuestionario</option>
         </select>
       </div>
+
+      {type === "file_upload" && (
+        <div>
+          <label htmlFor="aiPrompt" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+            Prompt de Preevaluación (IA)
+          </label>
+          <textarea
+            id="aiPrompt"
+            name="aiPrompt"
+            rows={4}
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            placeholder="Ej: Verifica que el código incluya un archivo index.html y un archivo styles.css, que no tenga errores de sintaxis y utilice etiquetas semánticas de HTML5..."
+            className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+          ></textarea>
+          <p className="text-xs text-zinc-500 mt-1">Este prompt se añadirá a las instrucciones base de la IA al momento de preevaluar las entregas de los estudiantes.</p>
+        </div>
+      )}
 
       {type === "questionnaire" && (
         <div className="space-y-3 border-t border-zinc-200 dark:border-zinc-700 pt-4">
