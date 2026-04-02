@@ -3,7 +3,6 @@
 import JSZip from "jszip";
 import { createServerClient } from "@/lib/pocketbase-server";
 import { getDeliveryDownloadUrl } from "./actions";
-import { deleteFromS3 } from "./s3";
 import { revalidatePath } from "next/cache";
 
 export async function processDeliveryZip(deliveryId: string) {
@@ -57,20 +56,10 @@ export async function processDeliveryZip(deliveryId: string) {
     
     const extractedContent = structure + contents;
 
-    // Delete the file from S3
-    let key = delivery.repositoryUrl;
-    if (key.startsWith("http")) {
-      const urlObj = new URL(key);
-      key = decodeURIComponent(urlObj.pathname.split("/").pop() || "");
-    }
-    if (key) {
-      await deleteFromS3(key);
-    }
-
-    // Update the delivery: replace repositoryUrl with the extracted content text
+    // Update the delivery: only update the content field to store the extracted text
+    // The original repositoryUrl is preserved and the file is NOT deleted from S3
     await pb.collection("deliveries").update(deliveryId, {
-      content: extractedContent,
-      repositoryUrl: ""
+      content: extractedContent
     });
 
     if (delivery.expand?.assignment) {

@@ -50,7 +50,7 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
   const studentName = student?.name || "Estudiante desconocido";
 
   const handleProcessZip = async () => {
-    if (!confirm("Esto extraerá el contenido HTML/CSS del ZIP y borrará el archivo original. ¿Deseas continuar?")) {
+    if (!confirm("Esto extraerá y leerá el contenido HTML/CSS del ZIP para su preevaluación. El archivo ZIP original se mantendrá intacto en la base de datos. ¿Deseas continuar?")) {
       return;
     }
     
