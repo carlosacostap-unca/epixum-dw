@@ -81,8 +81,8 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
       if (result.success && result.data) {
         // Update local state to show the result immediately without a full refresh if preferred
         // or just let router.refresh() handle it. We'll update the local inputs:
-        setGrade(result.data.aiGrade.toString());
-        setFeedback(result.data.aiFeedback);
+        setGrade(result.data.aiGrade?.toString() || "");
+        setFeedback(result.data.aiFeedback || "");
         if (result.data.aiVerdict) {
           setVerdict(result.data.aiVerdict as any);
         }

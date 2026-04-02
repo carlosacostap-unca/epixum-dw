@@ -86,7 +86,7 @@ Devuelve el resultado estrictamente en formato JSON con la siguiente estructura,
 `;
 
     const response = await client.chat.completions.create({
-      model: 'gpt-5-mini', // Cambiar a 'gpt-4o-mini' si da error de que no existe
+      model: 'gpt-4o-mini', // Cambiado a 'gpt-4o-mini' para asegurar compatibilidad
       messages: [
         { role: 'system', content: 'Eres un profesor comprensivo, empático y justo, enfocado en estudiantes de primer año que recién comienzan.' },
         { role: 'user', content: prompt }
