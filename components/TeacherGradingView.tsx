@@ -21,19 +21,18 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
   const [grade, setGrade] = useState<string>(
     delivery.grade !== undefined && delivery.grade !== null && delivery.status === 'graded' 
       ? delivery.grade.toString() 
-      : (delivery.aiGrade !== undefined && delivery.aiGrade !== null ? delivery.aiGrade.toString() : "")
+      : ""
   );
   const [feedback, setFeedback] = useState<string>(
     delivery.grade !== undefined && delivery.grade !== null && delivery.status === 'graded' 
       ? (delivery.feedback || "") 
-      : (delivery.aiFeedback || "")
+      : ""
   );
   const [verdict, setVerdict] = useState<'Aprobado' | 'Corregir y reenviar' | ''>(
-    delivery.verdict || delivery.aiVerdict || ''
+    delivery.verdict || ''
   );
   const [isGrading, setIsGrading] = useState(false);
   const [isEvaluatingAI, setIsEvaluatingAI] = useState(false);
-  const [isProcessingZip, setIsProcessingZip] = useState(false);
   const [extractedCode, setExtractedCode] = useState<string>(
     delivery.content && typeof delivery.content === 'string' ? delivery.content : ""
   );
@@ -49,34 +48,27 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
   const student = delivery.expand?.student;
   const studentName = student?.name || "Estudiante desconocido";
 
-  const handleProcessZip = async () => {
-    if (!confirm("Esto extraerá y leerá el contenido HTML/CSS del ZIP para su preevaluación. El archivo ZIP original se mantendrá intacto en la base de datos. ¿Deseas continuar?")) {
-      return;
-    }
-    
-    setIsProcessingZip(true);
-    try {
-      const result = await processDeliveryZip(delivery.id);
-      if (result.success && result.extractedContent) {
-        setExtractedCode(result.extractedContent);
-        router.refresh();
-      } else {
-        alert(result.error || "No se pudo procesar el archivo ZIP");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Error inesperado al procesar el ZIP");
-    } finally {
-      setIsProcessingZip(false);
-    }
-  };
-
   const handleEvaluateAI = async () => {
     setIsEvaluatingAI(true);
     try {
+      let currentCode = extractedCode;
+      
+      // Auto-extract ZIP if it hasn't been extracted yet
+      if (assignment.type === 'file_upload' && !currentCode && delivery.repositoryUrl) {
+        const zipResult = await processDeliveryZip(delivery.id);
+        if (zipResult.success && zipResult.extractedContent) {
+          currentCode = zipResult.extractedContent;
+          setExtractedCode(currentCode);
+        } else {
+          alert(zipResult.error || "No se pudo extraer el código del ZIP para la evaluación.");
+          setIsEvaluatingAI(false);
+          return;
+        }
+      }
+
       const result = await evaluateDeliveryWithAI(
         delivery.id, 
-        assignment.type === 'file_upload' ? extractedCode : undefined
+        assignment.type === 'file_upload' ? currentCode : undefined
       );
       if (result.success && result.data) {
         // Update local state to show the result immediately without a full refresh if preferred
@@ -214,24 +206,6 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
                                         <>
                                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                                             Descargar ZIP
-                                        </>
-                                    )}
-                                </button>
-
-                                <button
-                                    onClick={handleProcessZip}
-                                    disabled={isProcessingZip}
-                                    className="flex items-center justify-center gap-2 w-full md:w-auto px-6 py-3 bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors font-medium disabled:opacity-50"
-                                >
-                                    {isProcessingZip ? (
-                                        <>
-                                            <span className="animate-spin h-5 w-5 border-2 border-amber-600 border-t-transparent rounded-full"></span>
-                                            Procesando ZIP...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-                                            Extraer y ver contenido
                                         </>
                                     )}
                                 </button>
