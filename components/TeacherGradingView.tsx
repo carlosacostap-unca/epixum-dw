@@ -37,6 +37,8 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
     delivery.content && typeof delivery.content === 'string' ? delivery.content : ""
   );
   const [isEditingFeedback, setIsEditingFeedback] = useState(false);
+  const [isExtractingCode, setIsExtractingCode] = useState(false);
+  const hasAttemptedExtraction = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -46,6 +48,31 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
     }
   }, [feedback, isEditingFeedback]);
   
+  useEffect(() => {
+    const autoExtract = async () => {
+      if (
+        assignment.type === 'file_upload' && 
+        !extractedCode && 
+        delivery.repositoryUrl && 
+        !hasAttemptedExtraction.current
+      ) {
+        hasAttemptedExtraction.current = true;
+        setIsExtractingCode(true);
+        try {
+          const zipResult = await processDeliveryZip(delivery.id);
+          if (zipResult.success && zipResult.extractedContent) {
+            setExtractedCode(zipResult.extractedContent);
+          }
+        } catch (err) {
+          console.error("Error auto-extracting ZIP:", err);
+        } finally {
+          setIsExtractingCode(false);
+        }
+      }
+    };
+    autoExtract();
+  }, [assignment.type, delivery.id, delivery.repositoryUrl, extractedCode]);
+
   const student = delivery.expand?.student;
   const studentName = student?.name || "Estudiante desconocido";
 
@@ -184,6 +211,13 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
                                     onChange={(e) => setExtractedCode(e.target.value)}
                                     className="w-full px-4 py-3 font-mono text-sm border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 min-h-[300px] resize-y"
                                 />
+                            </div>
+                        ) : isExtractingCode ? (
+                            <div className="flex flex-col items-center justify-center p-8 bg-zinc-100/50 dark:bg-zinc-800/50 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                                <span className="animate-spin h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full mb-4"></span>
+                                <p className="text-base text-zinc-600 dark:text-zinc-400 font-medium">
+                                    Extrayendo contenido del archivo ZIP...
+                                </p>
                             </div>
                         ) : (
                             <p className="text-base text-zinc-700 dark:text-zinc-300">
