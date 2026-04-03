@@ -40,6 +40,7 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
   const [isExtractingCode, setIsExtractingCode] = useState(false);
   const hasAttemptedExtraction = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const codeTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (isEditingFeedback && textareaRef.current) {
@@ -47,6 +48,13 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
   }, [feedback, isEditingFeedback]);
+  
+  useEffect(() => {
+    if (codeTextareaRef.current) {
+      codeTextareaRef.current.style.height = "auto";
+      codeTextareaRef.current.style.height = `${codeTextareaRef.current.scrollHeight}px`;
+    }
+  }, [extractedCode]);
   
   useEffect(() => {
     const autoExtract = async () => {
@@ -207,9 +215,10 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
                                     Entrega del estudiante (Código Extraído)
                                 </label>
                                 <textarea
+                                    ref={codeTextareaRef}
                                     value={extractedCode}
                                     onChange={(e) => setExtractedCode(e.target.value)}
-                                    className="w-full px-4 py-3 font-mono text-sm border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 min-h-[300px] resize-y"
+                                    className="w-full px-4 py-3 font-mono text-sm border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 min-h-[300px] resize-none overflow-hidden"
                                 />
                             </div>
                         ) : isExtractingCode ? (
