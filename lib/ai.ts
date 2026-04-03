@@ -100,19 +100,35 @@ Devuelve el resultado estrictamente en formato JSON con la siguiente estructura,
     console.log("AI Response JSON:", resultText);
     const result = JSON.parse(resultText);
     
-    // La IA a veces traduce las claves del JSON si el prompt está en español
-    const extractedGrade = result.grade ?? result.calificacion ?? result.Calificacion ?? result.nota ?? result.Nota ?? result.puntuacion ?? result.Puntuacion;
-    
-    let extractedFeedback = result.feedback ?? result.devolucion ?? result.Feedback ?? result.comentarios ?? result.Comentarios ?? result.observaciones ?? result.Observaciones ?? result.mensaje ?? result.Mensaje ?? result.respuesta ?? result.Respuesta;
-    
-    let extractedVerdict = result.verdict ?? result.veredicto ?? result.Verdict ?? result.Veredicto ?? result.estado ?? result.Estado;
+    // Función auxiliar para aplanar objetos anidados por si la IA devuelve {"evaluacion": {"grade": ...}}
+    const flattenObject = (obj: any, prefix = ''): any => {
+      return Object.keys(obj).reduce((acc: any, k: string) => {
+        const pre = prefix.length ? prefix + '.' : '';
+        if (typeof obj[k] === 'object' && obj[k] !== null && !Array.isArray(obj[k])) {
+          Object.assign(acc, flattenObject(obj[k], pre + k));
+        } else {
+          acc[k] = obj[k];
+        }
+        return acc;
+      }, {});
+    };
 
-    // Fallback extremo para el feedback: si no lo encuentra por nombre de clave, 
-    // toma el valor de texto más largo en el JSON (excluyendo veredictos cortos)
+    const flatResult = flattenObject(result);
+    
+    // Buscar valores ignorando mayúsculas/minúsculas en las claves
+    const getVal = (keys: string[]) => {
+      const foundKey = Object.keys(flatResult).find(k => keys.some(searchKey => k.toLowerCase().includes(searchKey.toLowerCase())));
+      return foundKey ? flatResult[foundKey] : undefined;
+    };
+
+    const extractedGrade = getVal(['grade', 'calificacion', 'nota', 'puntuacion']);
+    let extractedFeedback = getVal(['feedback', 'devolucion', 'comentario', 'observacion', 'mensaje', 'respuesta']);
+    let extractedVerdict = getVal(['verdict', 'veredicto', 'estado']);
+
+    // Fallback extremo para el feedback: si no lo encuentra, toma el valor de texto más largo en todo el JSON
     if (!extractedFeedback) {
-      const stringValues = Object.values(result).filter(v => typeof v === 'string') as string[];
-      // Buscar un string largo que parezca un feedback (más de 30 caracteres)
-      const longStrings = stringValues.filter(s => s.length > 30);
+      const stringValues = Object.values(flatResult).filter(v => typeof v === 'string') as string[];
+      const longStrings = stringValues.filter(s => s.length > 30).sort((a, b) => b.length - a.length);
       if (longStrings.length > 0) {
         extractedFeedback = longStrings[0];
       }
