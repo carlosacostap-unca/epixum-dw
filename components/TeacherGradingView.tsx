@@ -36,6 +36,7 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
   const [extractedCode, setExtractedCode] = useState<string>(
     delivery.content && typeof delivery.content === 'string' ? delivery.content : ""
   );
+  const [isEditingFeedback, setIsEditingFeedback] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -280,18 +281,47 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
                 </div>
                 
                 <div>
-                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                        Feedback para el estudiante
-                    </label>
-                    <textarea 
-                        ref={textareaRef}
-                        rows={4}
-                        value={feedback}
-                        onChange={(e) => setFeedback(e.target.value)}
-                        className="w-full px-4 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 min-h-[150px] resize-none overflow-hidden"
-                        placeholder="Escribe tus comentarios aquí..."
-                        required
-                    />
+                    <div className="flex justify-between items-center mb-2">
+                        <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                            Feedback para el estudiante
+                        </label>
+                        <button
+                            type="button"
+                            onClick={() => setIsEditingFeedback(!isEditingFeedback)}
+                            className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
+                        >
+                            {isEditingFeedback ? "Ver vista previa" : "Editar Markdown"}
+                        </button>
+                    </div>
+                    
+                    {isEditingFeedback ? (
+                        <textarea 
+                            ref={textareaRef}
+                            rows={8}
+                            value={feedback}
+                            onChange={(e) => setFeedback(e.target.value)}
+                            className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 min-h-[200px] resize-y font-mono text-sm"
+                            placeholder="Escribe tus comentarios aquí usando Markdown..."
+                            required
+                        />
+                    ) : (
+                        <div 
+                            className="w-full px-5 py-4 border border-zinc-300 dark:border-zinc-600 rounded-md bg-zinc-50 dark:bg-zinc-900 min-h-[200px] prose prose-zinc dark:prose-invert max-w-none text-sm"
+                            onClick={() => {
+                                if (!feedback) setIsEditingFeedback(true);
+                            }}
+                        >
+                            {feedback ? (
+                                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                                    {feedback}
+                                </ReactMarkdown>
+                            ) : (
+                                <span className="text-zinc-400 italic cursor-pointer block w-full h-full">
+                                    Haz clic aquí para escribir tus comentarios o genera la evaluación con IA...
+                                </span>
+                            )}
+                        </div>
+                    )}
                 </div>
                 
                 <div className="flex flex-col gap-3 pt-4">
