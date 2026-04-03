@@ -101,9 +101,22 @@ Devuelve el resultado estrictamente en formato JSON con la siguiente estructura,
     const result = JSON.parse(resultText);
     
     // La IA a veces traduce las claves del JSON si el prompt está en español
-    const extractedGrade = result.grade ?? result.calificacion ?? result.Calificacion ?? result.nota ?? result.Nota;
-    const extractedFeedback = result.feedback ?? result.devolucion ?? result.Feedback ?? result.comentarios ?? result.Comentarios;
-    let extractedVerdict = result.verdict ?? result.veredicto ?? result.Verdict ?? result.Veredicto;
+    const extractedGrade = result.grade ?? result.calificacion ?? result.Calificacion ?? result.nota ?? result.Nota ?? result.puntuacion ?? result.Puntuacion;
+    
+    let extractedFeedback = result.feedback ?? result.devolucion ?? result.Feedback ?? result.comentarios ?? result.Comentarios ?? result.observaciones ?? result.Observaciones ?? result.mensaje ?? result.Mensaje ?? result.respuesta ?? result.Respuesta;
+    
+    let extractedVerdict = result.verdict ?? result.veredicto ?? result.Verdict ?? result.Veredicto ?? result.estado ?? result.Estado;
+
+    // Fallback extremo para el feedback: si no lo encuentra por nombre de clave, 
+    // toma el valor de texto más largo en el JSON (excluyendo veredictos cortos)
+    if (!extractedFeedback) {
+      const stringValues = Object.values(result).filter(v => typeof v === 'string') as string[];
+      // Buscar un string largo que parezca un feedback (más de 30 caracteres)
+      const longStrings = stringValues.filter(s => s.length > 30);
+      if (longStrings.length > 0) {
+        extractedFeedback = longStrings[0];
+      }
+    }
 
     // Normalizar el veredicto para que coincida exactamente con los valores permitidos
     if (typeof extractedVerdict === 'string') {
