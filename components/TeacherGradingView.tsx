@@ -174,7 +174,7 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
                     </div>
                 ) : (
                     <div className="bg-zinc-50 dark:bg-zinc-900 p-6 rounded-lg border border-zinc-200 dark:border-zinc-700 flex flex-col gap-4">
-                        {delivery.content && typeof delivery.content === 'string' ? (
+                        {extractedCode ? (
                             <div className="space-y-2">
                                 <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">
                                     Entrega del estudiante (Código Extraído)
