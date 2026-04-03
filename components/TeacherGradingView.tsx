@@ -40,11 +40,11 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (textareaRef.current) {
+    if (isEditingFeedback && textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
     }
-  }, [feedback]);
+  }, [feedback, isEditingFeedback]);
   
   const student = delivery.expand?.student;
   const studentName = student?.name || "Estudiante desconocido";
@@ -300,7 +300,7 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
                             rows={8}
                             value={feedback}
                             onChange={(e) => setFeedback(e.target.value)}
-                            className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 min-h-[200px] resize-y font-mono text-sm"
+                            className="w-full px-4 py-3 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 min-h-[200px] resize-none overflow-hidden font-mono text-sm"
                             placeholder="Escribe tus comentarios aquí usando Markdown..."
                             required
                         />
