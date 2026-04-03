@@ -77,7 +77,10 @@ Tu tarea es proporcionar una calificación del 1 al 10 y un feedback constructiv
 El alumno aprueba con una nota mayor o igual a 7. Caso contrario debe corregir y reenviar su trabajo.
 Por favor si el alumno aprueba, dile que no es necesario que envíe nuevamente su trabajo.
 Usa formato Markdown (negritas, listas, saltos de línea) en el feedback para que sea fácil de leer y estructurado.
-Devuelve el resultado estrictamente en formato JSON con la siguiente estructura, sin markdown en el bloque general ni comillas invertidas:
+
+IMPORTANTE SOBRE EL FORMATO JSON:
+- Devuelve el resultado estrictamente en formato JSON con la siguiente estructura, sin markdown en el bloque general ni comillas invertidas.
+- NUNCA uses comillas dobles sin escapar dentro del texto del feedback, ya que romperá el JSON. Si necesitas citar código HTML o texto, usa comillas simples (ejemplo: <div class='mi-clase'>) o asegúrate de escapar las comillas dobles con backslash (ejemplo: <div class=\\"mi-clase\\").
 {
   "grade": número (1 al 10),
   "verdict": "Aprobado" o "Corregir y reenviar",
