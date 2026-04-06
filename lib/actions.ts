@@ -445,6 +445,16 @@ export async function createDelivery(formData: FormData) {
      return { success: false, error: 'Assignment ID is required' };
   }
 
+  // Check assignment due date on the server
+  try {
+    const assignment = await pb.collection('assignments').getOne(assignmentId);
+    if (assignment.dueDate && new Date(assignment.dueDate) < new Date()) {
+      return { success: false, error: 'La fecha límite para este trabajo práctico ha pasado.' };
+    }
+  } catch (error) {
+    return { success: false, error: 'Assignment not found' };
+  }
+
   // Validate based on what is provided. 
   // We might not know the assignment type here easily without fetching it, 
   // but we can check if at least one delivery method is present.
@@ -512,6 +522,16 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
 
   // We need to fetch the delivery to check ownership, 
   // although PocketBase API rules should handle this, it's good to be explicit or just try/catch
+  let currentDelivery;
+  try {
+    currentDelivery = await pb.collection('deliveries').getOne(deliveryId, { expand: 'assignment' });
+    const assignment = currentDelivery.expand?.assignment;
+    if (assignment && assignment.dueDate && new Date(assignment.dueDate) < new Date()) {
+      return { success: false, error: 'La fecha límite para este trabajo práctico ha pasado.' };
+    }
+  } catch (error) {
+    return { success: false, error: 'Delivery not found' };
+  }
   
   const repositoryUrl = (formData.get('repositoryUrl') as string)?.trim();
   const contentStr = (formData.get('content') as string);
@@ -547,7 +567,6 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
     // --- Clean up drafts ---
     if (status === 'submitted') {
       try {
-        const currentDelivery = await pb.collection('deliveries').getOne(deliveryId);
         const actualAssignmentId = assignmentId || currentDelivery.assignment;
         
         // Find all draft deliveries for this user and assignment
