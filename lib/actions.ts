@@ -547,10 +547,25 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
     if (repositoryUrl) data.repositoryUrl = repositoryUrl;
     if (status) {
         data.status = status;
-        // Si el estudiante vuelve a enviar o guarda borrador, se limpia la calificación previa
+        // Si el estudiante vuelve a enviar o guarda borrador, se limpia la calificación previa pero se guarda en el historial si fue evaluado
         if (status === 'submitted' || status === 'draft') {
+            if (currentDelivery.status === 'graded' && currentDelivery.verdict === 'Corregir y reenviar') {
+                const historyEntry = {
+                    repositoryUrl: currentDelivery.repositoryUrl,
+                    content: currentDelivery.content,
+                    grade: currentDelivery.grade,
+                    feedback: currentDelivery.feedback,
+                    verdict: currentDelivery.verdict,
+                    gradedAt: currentDelivery.updated,
+                    submittedAt: new Date().toISOString()
+                };
+                const existingHistory = currentDelivery.history || [];
+                data.history = [...existingHistory, historyEntry];
+            }
+            
             data.grade = null;
             data.feedback = "";
+            data.verdict = "";
         }
     }
     if (contentStr) {

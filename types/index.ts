@@ -74,6 +74,7 @@ export interface Delivery extends BaseModel {
   aiFeedback?: string;
   aiVerdict?: 'Aprobado' | 'Corregir y reenviar';
   verdict?: 'Aprobado' | 'Corregir y reenviar';
+  history?: any[];
   expand?: {
     student?: User;
     assignment?: Assignment;

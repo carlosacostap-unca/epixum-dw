@@ -262,7 +262,7 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
             {/* Removed AI Pre-evaluation display section based on user request */}
 
             {delivery.status !== 'graded' && (
-                <div className="mb-2">
+                <div className="mb-8">
                     <button
                         onClick={handleEvaluateAI}
                         disabled={isEvaluatingAI}
@@ -280,6 +280,80 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
                             </>
                         )}
                     </button>
+                </div>
+            )}
+
+            {/* Historial de Entregas Previas */}
+            {delivery.history && delivery.history.length > 0 && (
+                <div className="mt-8 border-t border-zinc-200 dark:border-zinc-700 pt-8">
+                    <h3 className="text-xl font-bold mb-6 text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                        <svg className="w-6 h-6 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        Historial de Entregas
+                    </h3>
+                    
+                    <div className="space-y-6">
+                        {[...delivery.history].reverse().map((historyItem, index) => (
+                            <div key={index} className="bg-zinc-50 dark:bg-zinc-900 p-6 rounded-lg border border-zinc-200 dark:border-zinc-700">
+                                <div className="flex flex-wrap items-center justify-between gap-4 mb-4 pb-4 border-b border-zinc-200 dark:border-zinc-700">
+                                    <div>
+                                        <span className="text-sm font-semibold text-zinc-500 dark:text-zinc-400">
+                                            Intento anterior #{delivery.history!.length - index}
+                                        </span>
+                                        <p className="text-xs text-zinc-400 mt-1">
+                                            Evaluado el: {new Date(historyItem.gradedAt).toLocaleString()}
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-3 items-center">
+                                        <span className="px-3 py-1 bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300 text-sm font-semibold rounded-full">
+                                            {historyItem.verdict}
+                                        </span>
+                                        <span className="font-bold text-zinc-700 dark:text-zinc-300">
+                                            Nota: {historyItem.grade}
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div className="mb-4">
+                                    <h4 className="text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-2">Devolución enviada:</h4>
+                                    <div className="prose prose-sm max-w-none text-zinc-600 dark:text-zinc-400 bg-white dark:bg-zinc-950 p-4 rounded border border-zinc-200 dark:border-zinc-800">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+                                            {historyItem.feedback}
+                                        </ReactMarkdown>
+                                    </div>
+                                </div>
+
+                                {historyItem.content && assignment.type === 'questionnaire' && (
+                                    <div>
+                                        <h4 className="text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-2">Respuestas de este intento:</h4>
+                                        <div className="bg-white dark:bg-zinc-950 p-4 rounded border border-zinc-200 dark:border-zinc-800 space-y-4">
+                                            {assignment.questions?.map((q, idx) => (
+                                                <div key={q.id}>
+                                                    <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200"><span className="text-zinc-500 mr-2">{idx + 1}.</span> {q.text}</p>
+                                                    <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1 pl-3 border-l-2 border-zinc-300 dark:border-zinc-700">
+                                                        {historyItem.content[q.id] || <span className="italic">Sin respuesta</span>}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {historyItem.repositoryUrl && assignment.type === 'file_upload' && (
+                                    <div className="mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-800">
+                                        <a 
+                                            href={historyItem.repositoryUrl} 
+                                            target="_blank" 
+                                            rel="noopener noreferrer"
+                                            className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                                            Ver archivo/repositorio adjunto de este intento
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             )}
         </div>
