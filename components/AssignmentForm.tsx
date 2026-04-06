@@ -17,6 +17,15 @@ export default function AssignmentForm({ assignment, onClose, isEmbedded = false
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  
+  // Helper to convert UTC date string to local datetime-local string
+  const getLocalDateTime = (isoDate: string) => {
+    if (!isoDate) return '';
+    const date = new Date(isoDate);
+    const offset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+    return localDate.toISOString().slice(0, 16);
+  };
   const [description, setDescription] = useState(assignment?.description || "");
   const [type, setType] = useState<AssignmentType>(assignment?.type || "file_upload");
   const [questions, setQuestions] = useState<Question[]>(assignment?.questions || []);
@@ -37,6 +46,14 @@ export default function AssignmentForm({ assignment, onClose, isEmbedded = false
   async function handleSubmit(formData: FormData) {
     setLoading(true);
     setError(null);
+    
+    // Convert local datetime to UTC before sending
+    const dateStr = formData.get("dueDate") as string;
+    if (dateStr) {
+        const date = new Date(dateStr);
+        formData.set("dueDate", date.toISOString());
+    }
+    
     try {
       // Ensure description is included in formData
       formData.set("description", description);
@@ -92,7 +109,7 @@ export default function AssignmentForm({ assignment, onClose, isEmbedded = false
           type="datetime-local"
           name="dueDate"
           id="dueDate"
-          defaultValue={assignment?.dueDate ? new Date(new Date(assignment.dueDate).getTime() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""}
+          defaultValue={assignment?.dueDate ? getLocalDateTime(assignment.dueDate) : ""}
           className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
         />
       </div>
