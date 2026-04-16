@@ -53,6 +53,12 @@ export default function AssignmentForm({ assignment, onClose, isEmbedded = false
         const date = new Date(dateStr);
         formData.set("dueDate", date.toISOString());
     }
+
+    const correctionDateStr = formData.get("correctionDueDate") as string;
+    if (correctionDateStr) {
+        const correctionDate = new Date(correctionDateStr);
+        formData.set("correctionDueDate", correctionDate.toISOString());
+    }
     
     try {
       // Ensure description is included in formData
@@ -110,6 +116,19 @@ export default function AssignmentForm({ assignment, onClose, isEmbedded = false
           name="dueDate"
           id="dueDate"
           defaultValue={assignment?.dueDate ? getLocalDateTime(assignment.dueDate) : ""}
+          className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+        />
+      </div>
+
+      <div>
+        <label htmlFor="correctionDueDate" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+          Fecha límite para corregir y reenviar (opcional)
+        </label>
+        <input
+          type="datetime-local"
+          name="correctionDueDate"
+          id="correctionDueDate"
+          defaultValue={assignment?.correctionDueDate ? getLocalDateTime(assignment.correctionDueDate) : ""}
           className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
         />
       </div>

@@ -229,6 +229,7 @@ export async function createAssignment(formData: FormData) {
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
   const dueDate = formData.get('dueDate') as string;
+  const correctionDueDate = formData.get('correctionDueDate') as string;
   const type = formData.get('type') as string;
   const questionsStr = formData.get('questions') as string;
   const aiPrompt = formData.get('aiPrompt') as string;
@@ -244,6 +245,7 @@ export async function createAssignment(formData: FormData) {
       type,
     };
     if (dueDate) data.dueDate = new Date(dueDate).toISOString();
+    if (correctionDueDate) data.correctionDueDate = new Date(correctionDueDate).toISOString();
     if (aiPrompt) data.aiPrompt = aiPrompt;
     if (questionsStr) {
       try {
@@ -273,6 +275,7 @@ export async function updateAssignment(assignmentId: string, formData: FormData)
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
   const dueDate = formData.get('dueDate') as string;
+  const correctionDueDate = formData.get('correctionDueDate') as string;
   const type = formData.get('type') as string;
   const questionsStr = formData.get('questions') as string;
   const aiPrompt = formData.get('aiPrompt') as string;
@@ -288,6 +291,11 @@ export async function updateAssignment(assignmentId: string, formData: FormData)
     data.aiPrompt = aiPrompt || "";
 
     if (dueDate) data.dueDate = new Date(dueDate).toISOString();
+    else data.dueDate = ""; // clear if removed
+
+    if (correctionDueDate) data.correctionDueDate = new Date(correctionDueDate).toISOString();
+    else data.correctionDueDate = ""; // clear if removed
+
     if (questionsStr) {
       try {
         data.questions = JSON.parse(questionsStr);
@@ -448,7 +456,7 @@ export async function createDelivery(formData: FormData) {
   // Check assignment due date on the server
   try {
     const assignment = await pb.collection('assignments').getOne(assignmentId);
-    if (assignment.dueDate && new Date(assignment.dueDate) < new Date()) {
+    if (status === 'submitted' && assignment.dueDate && new Date(assignment.dueDate) < new Date()) {
       return { success: false, error: 'La fecha límite para este trabajo práctico ha pasado.' };
     }
   } catch (error) {
@@ -520,23 +528,31 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
     return { success: false, error: 'Unauthorized' };
   }
 
+  const repositoryUrl = (formData.get('repositoryUrl') as string)?.trim();
+  const contentStr = (formData.get('content') as string);
+  const status = (formData.get('status') as string);
+  const assignmentId = (formData.get('assignmentId') as string)?.trim(); // Needed for revalidation
+
   // We need to fetch the delivery to check ownership, 
   // although PocketBase API rules should handle this, it's good to be explicit or just try/catch
   let currentDelivery;
   try {
     currentDelivery = await pb.collection('deliveries').getOne(deliveryId, { expand: 'assignment' });
     const assignment = currentDelivery.expand?.assignment;
-    if (assignment && assignment.dueDate && new Date(assignment.dueDate) < new Date()) {
-      return { success: false, error: 'La fecha límite para este trabajo práctico ha pasado.' };
+    if (assignment) {
+      const isCorrection = currentDelivery.verdict === 'Corregir y reenviar';
+      let limitDate = assignment.dueDate ? new Date(assignment.dueDate) : null;
+      if (isCorrection && assignment.correctionDueDate) {
+        limitDate = new Date(assignment.correctionDueDate);
+      }
+      
+      if (status === 'submitted' && limitDate && limitDate < new Date()) {
+        return { success: false, error: 'La fecha límite para este trabajo práctico ha pasado.' };
+      }
     }
   } catch (error) {
     return { success: false, error: 'Delivery not found' };
   }
-  
-  const repositoryUrl = (formData.get('repositoryUrl') as string)?.trim();
-  const contentStr = (formData.get('content') as string);
-  const status = (formData.get('status') as string);
-  const assignmentId = (formData.get('assignmentId') as string)?.trim(); // Needed for revalidation
 
   if (!repositoryUrl && !contentStr && !status) {
      return { success: false, error: 'Nothing to update' };

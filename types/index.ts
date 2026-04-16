@@ -52,6 +52,7 @@ export interface Assignment extends BaseModel {
   title: string;
   description: string;
   dueDate?: string;
+  correctionDueDate?: string;
   type?: AssignmentType;
   questions?: Question[];
   aiPrompt?: string;

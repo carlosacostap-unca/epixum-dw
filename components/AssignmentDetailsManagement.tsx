@@ -85,6 +85,11 @@ export default function AssignmentDetailsManagement({ user, assignment, links, i
                         Vence: <FormattedDate date={assignment.dueDate} locale="es-AR" showTime={true} />
                     </span>
                 )}
+                {assignment.correctionDueDate && (
+                    <span className={`px-3 py-1 text-sm font-medium rounded-full ${new Date(assignment.correctionDueDate) < new Date() ? 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-200' : 'text-blue-600 bg-blue-100 dark:bg-blue-900 dark:text-blue-200'}`}>
+                        Reenvío: <FormattedDate date={assignment.correctionDueDate} locale="es-AR" showTime={true} />
+                    </span>
+                )}
             </div>
         <h1 className="text-3xl font-extrabold tracking-tight lg:text-4xl mb-4 pr-12">
           {assignment.title}

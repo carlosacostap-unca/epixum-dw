@@ -52,7 +52,13 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
   const isDelivered = !!delivery && delivery.status !== 'draft';
   const isDraft = !!delivery && delivery.status === 'draft';
   const isGraded = !!delivery && delivery.status === 'graded';
-  const isPastDue = assignment.dueDate ? new Date(assignment.dueDate) < new Date() : false;
+  
+  const isCorrection = delivery?.verdict === 'Corregir y reenviar';
+  let limitDate = assignment.dueDate ? new Date(assignment.dueDate) : null;
+  if (isCorrection && assignment.correctionDueDate) {
+    limitDate = new Date(assignment.correctionDueDate);
+  }
+  const isPastDue = limitDate ? limitDate < new Date() : false;
 
   useEffect(() => {
     if (delivery?.content && assignment.type === 'questionnaire') {
