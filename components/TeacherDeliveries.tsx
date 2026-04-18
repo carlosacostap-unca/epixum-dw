@@ -11,6 +11,8 @@ interface TeacherDeliveriesProps {
 
 export default function TeacherDeliveries({ deliveries, assignment }: TeacherDeliveriesProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("submitted");
+  const [verdictFilter, setVerdictFilter] = useState("all");
   
   const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL?.replace(/\/$/, "") || "";
 
@@ -19,9 +21,15 @@ export default function TeacherDeliveries({ deliveries, assignment }: TeacherDel
     const studentName = student?.name || "Estudiante desconocido";
     const studentEmail = student?.email || "Sin email";
     
-    return studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
            studentEmail.toLowerCase().includes(searchTerm.toLowerCase());
-  });
+           
+    const matchesStatus = statusFilter === "all" || delivery.status === statusFilter;
+    const matchesVerdict = verdictFilter === "all" || 
+      (verdictFilter === "none" ? !delivery.verdict : delivery.verdict === verdictFilter);
+           
+    return matchesSearch && matchesStatus && matchesVerdict;
+  }).sort((a, b) => new Date(a.created).getTime() - new Date(b.created).getTime());
 
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-6">
@@ -29,18 +37,43 @@ export default function TeacherDeliveries({ deliveries, assignment }: TeacherDel
         <span className="p-1 bg-blue-100 dark:bg-blue-900 rounded-md">
             <svg className="w-5 h-5 text-blue-600 dark:text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
         </span>
-        Entregas ({deliveries.length})
+        Entregas ({filteredDeliveries.length})
       </h2>
 
-      {/* Search Input */}
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Buscar estudiante..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
-        />
+      {/* Filters */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-4">
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="Buscar estudiante..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+          />
+        </div>
+        <div className="flex gap-2">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+          >
+            <option value="all">Todos los estados</option>
+            <option value="submitted">Entregado</option>
+            <option value="graded">Calificado</option>
+            <option value="draft">Borrador</option>
+          </select>
+          <select
+            value={verdictFilter}
+            onChange={(e) => setVerdictFilter(e.target.value)}
+            className="px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100"
+          >
+            <option value="all">Todos los veredictos</option>
+            <option value="Aprobado">Aprobado</option>
+            <option value="Corregir y reenviar">Corregir y reenviar</option>
+            <option value="Desaprobado">Desaprobado</option>
+            <option value="none">Sin veredicto</option>
+          </select>
+        </div>
       </div>
 
       <div className="overflow-x-auto">

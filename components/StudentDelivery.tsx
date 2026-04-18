@@ -15,9 +15,10 @@ interface StudentDeliveryProps {
   studentName: string;
   assignmentTitle: string;
   assignment: Assignment;
+  isSpecialStudent?: boolean;
 }
 
-export default function StudentDelivery({ assignmentId, delivery, studentName, assignmentTitle, assignment }: StudentDeliveryProps) {
+export default function StudentDelivery({ assignmentId, delivery, studentName, assignmentTitle, assignment, isSpecialStudent = false }: StudentDeliveryProps) {
   const [isEditing, setIsEditing] = useState(!delivery || delivery.status === 'draft');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +59,7 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
   if (isCorrection && assignment.correctionDueDate) {
     limitDate = new Date(assignment.correctionDueDate);
   }
-  const isPastDue = limitDate ? limitDate < new Date() : false;
+  const isPastDue = isSpecialStudent ? false : (limitDate ? limitDate < new Date() : false);
 
   useEffect(() => {
     if (delivery?.content && assignment.type === 'questionnaire') {

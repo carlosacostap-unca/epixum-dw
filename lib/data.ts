@@ -58,6 +58,16 @@ export const getStudents = cache(async () => {
     return getStudentsCached(token);
 });
 
+export async function getUserById(userId: string) {
+    const pb = await createServerClient();
+    try {
+        return await pb.collection('users').getOne<User>(userId);
+    } catch (e) {
+        console.error('Error fetching user by id:', e);
+        return null;
+    }
+}
+
 export async function getAllClasses() {
     const pb = await createServerClient();
     const records = await pb.collection('classes').getFullList<Class>({
@@ -121,6 +131,21 @@ export async function getUserDelivery(assignmentId: string, userId: string) {
   } catch (error) {
     // It's normal to not have a delivery yet
     return null;
+  }
+}
+
+export async function getUserDeliveries(userId: string) {
+  const pb = await createServerClient();
+  try {
+    const records = await pb.collection('deliveries').getFullList<Delivery>({
+        filter: `student = "${userId}"`,
+        sort: '-created',
+        expand: 'assignment'
+    });
+    return records;
+  } catch (error) {
+    console.error('Error fetching user deliveries:', error);
+    return [];
   }
 }
 

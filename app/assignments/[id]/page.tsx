@@ -50,6 +50,8 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
     );
   }
 
+  const isSpecialStudent = user?.email === 'carlosacostap@sfvc.edu.ar';
+
   return (
     <div className="container mx-auto p-8 min-h-screen">
       <Link href="/assignments" className="text-blue-500 hover:underline mb-8 inline-block">&larr; Volver a Trabajos Prácticos</Link>
@@ -105,6 +107,7 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
             studentName={user.name}
             assignmentTitle={assignment.title}
             assignment={assignment}
+            isSpecialStudent={isSpecialStudent}
         />
       )}
     </div>

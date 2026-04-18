@@ -17,7 +17,7 @@ interface InquiryListProps {
 }
 
 export default function InquiryList({ inquiries, currentUser, context, showSearch = false }: InquiryListProps) {
-  const [filter, setFilter] = useState<"all" | "pending" | "resolved" | "mine">("all");
+  const [filter, setFilter] = useState<"all" | "pending" | "resolved" | "mine">("pending");
   
   const searchParams = useSearchParams();
   const pathname = usePathname();
