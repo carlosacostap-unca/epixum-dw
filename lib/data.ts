@@ -121,6 +121,21 @@ export async function getDeliveries(assignmentId: string) {
    }
 }
 
+export async function getAllDeliveries() {
+  const pb = await createServerClient();
+  try {
+    const records = await pb.collection('deliveries').getFullList<Delivery>({
+      sort: '-created',
+      expand: 'student,assignment',
+    });
+
+    return records;
+  } catch {
+    console.error('Error fetching all deliveries');
+    return [];
+  }
+}
+
 export async function getUserDelivery(assignmentId: string, userId: string) {
   const pb = await createServerClient();
   try {
@@ -128,7 +143,7 @@ export async function getUserDelivery(assignmentId: string, userId: string) {
         `assignment = "${assignmentId}" && student = "${userId}"`
     );
     return record;
-  } catch (error) {
+  } catch {
     // It's normal to not have a delivery yet
     return null;
   }
