@@ -97,7 +97,7 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
           : await createDelivery(formData);
 
         if (result.success) {
-          if (!currentDeliveryId && result.id) {
+          if (result.id && result.id !== currentDeliveryId) {
             setLocalDeliveryId(result.id);
           }
           setLastAutoSave(new Date());
@@ -254,7 +254,7 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
           : await createDelivery(formData);
 
         if (result.success) {
-          if (!currentDeliveryId && result.id) {
+          if (result.id && result.id !== currentDeliveryId) {
             setLocalDeliveryId(result.id);
           }
           if (submitStatus === 'submitted') {
@@ -347,6 +347,9 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
           : await createDelivery(formData);
 
         if (result.success) {
+          if (result.id) {
+            setLocalDeliveryId(result.id);
+          }
           setCurrentStep('completed');
           setIsEditing(false);
           setStatus("");
@@ -478,7 +481,14 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
 
       {delivery?.feedback && (
         <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
-          <h3 className="text-sm font-bold text-blue-800 dark:text-blue-300 mb-2">Feedback del Docente</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-2">
+            <h3 className="text-sm font-bold text-blue-800 dark:text-blue-300">Feedback del Docente</h3>
+            {delivery.latestFeedback?.sentAt && (
+              <span className="text-xs text-blue-700/70 dark:text-blue-200/70">
+                Enviado el {new Date(delivery.latestFeedback.sentAt).toLocaleString()}
+              </span>
+            )}
+          </div>
           <div className="prose prose-sm max-w-none text-blue-900 dark:text-blue-100 prose-headings:text-blue-900 dark:prose-headings:text-blue-100 prose-strong:text-blue-900 dark:prose-strong:text-blue-100 prose-code:text-blue-800 dark:prose-code:text-blue-200 prose-code:bg-blue-100/50 dark:prose-code:bg-blue-800/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-a:text-blue-600 dark:prose-a:text-blue-400 prose-p:leading-relaxed prose-li:marker:text-blue-500 dark:prose-li:marker:text-blue-400">
             <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
               {delivery.feedback}

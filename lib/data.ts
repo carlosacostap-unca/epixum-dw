@@ -1,5 +1,5 @@
 import { createServerClient } from './pocketbase-server';
-import { Class, Link, Assignment, User, Delivery } from '@/types';
+import { Class, Link, Assignment, User, Delivery, DeliveryFeedback } from '@/types';
 import { unstable_cache } from 'next/cache';
 import { cache } from 'react';
 import PocketBase from 'pocketbase';
@@ -105,6 +105,98 @@ export async function getLinks(parentId: string, parentType: 'class' | 'assignme
   return records;
 }
 
+function feedbackDate(feedback: DeliveryFeedback) {
+  return new Date(feedback.sentAt || feedback.created).getTime();
+}
+
+function attachFeedbacksToDeliveries(deliveries: Delivery[], feedbacks: DeliveryFeedback[]) {
+  const feedbacksByDelivery = new Map<string, DeliveryFeedback[]>();
+
+  for (const feedback of feedbacks) {
+    const current = feedbacksByDelivery.get(feedback.delivery) || [];
+    current.push(feedback);
+    feedbacksByDelivery.set(feedback.delivery, current);
+  }
+
+  return deliveries.map((delivery) => {
+    const deliveryFeedbacks = (feedbacksByDelivery.get(delivery.id) || [])
+      .sort((a, b) => feedbackDate(b) - feedbackDate(a));
+    const latestFeedback = deliveryFeedbacks[0];
+
+    return {
+      ...delivery,
+      feedbacks: deliveryFeedbacks,
+      latestFeedback,
+      grade: latestFeedback?.grade,
+      feedback: latestFeedback?.feedback,
+      verdict: latestFeedback?.verdict,
+    };
+  });
+}
+
+function attachCorrectionContext(deliveries: Delivery[]) {
+  const deliveriesByAssignment = new Map<string, Delivery[]>();
+
+  for (const delivery of deliveries) {
+    const assignmentId = delivery.assignment || delivery.expand?.assignment?.id;
+    if (!assignmentId) continue;
+    const current = deliveriesByAssignment.get(assignmentId) || [];
+    current.push(delivery);
+    deliveriesByAssignment.set(assignmentId, current);
+  }
+
+  return deliveries.map((delivery) => {
+    if (delivery.verdict) {
+      return delivery;
+    }
+
+    const assignmentId = delivery.assignment || delivery.expand?.assignment?.id;
+    const assignmentDeliveries = assignmentId ? deliveriesByAssignment.get(assignmentId) || [] : [];
+    const previousCorrection = assignmentDeliveries
+      .filter((candidate) => new Date(candidate.created).getTime() < new Date(delivery.created).getTime())
+      .sort((a, b) => new Date(b.created).getTime() - new Date(a.created).getTime())
+      .find((candidate) => candidate.verdict === 'Corregir y reenviar');
+
+    if (!previousCorrection) {
+      return delivery;
+    }
+
+    return {
+      ...delivery,
+      verdict: 'Corregir y reenviar' as const,
+    };
+  });
+}
+
+async function getFeedbacksForDeliveries(pb: PocketBase, deliveryIds: string[]) {
+  if (deliveryIds.length === 0) {
+    return [];
+  }
+
+  const filter = deliveryIds.map((id) => `delivery = "${id}"`).join(" || ");
+  return await pb.collection('delivery_feedbacks').getFullList<DeliveryFeedback>({
+    filter,
+    sort: '-sentAt',
+    expand: 'teacher',
+  });
+}
+
+async function getFeedbacksForAssignment(pb: PocketBase, assignmentId: string) {
+  return await pb.collection('delivery_feedbacks').getFullList<DeliveryFeedback>({
+    filter: `assignment = "${assignmentId}"`,
+    sort: '-sentAt',
+    expand: 'teacher',
+  });
+}
+
+async function getFeedbacksForStudent(pb: PocketBase, userId: string) {
+  return await pb.collection('delivery_feedbacks').getFullList<DeliveryFeedback>({
+    filter: `student = "${userId}"`,
+    sort: '-sentAt',
+    expand: 'teacher',
+  });
+}
+
 export async function getDeliveries(assignmentId: string) {
   const pb = await createServerClient();
   try {
@@ -113,8 +205,9 @@ export async function getDeliveries(assignmentId: string) {
          sort: '-created',
          expand: 'student',
      });
-     
-     return records;
+
+     const feedbacks = await getFeedbacksForAssignment(pb, assignmentId);
+     return attachFeedbacksToDeliveries(records, feedbacks);
    } catch (error) {
      console.error('Error fetching deliveries:', error);
      return [];
@@ -129,7 +222,12 @@ export async function getAllDeliveries() {
       expand: 'student,assignment',
     });
 
-    return records;
+    const feedbacks = await pb.collection('delivery_feedbacks').getFullList<DeliveryFeedback>({
+      sort: '-sentAt',
+      expand: 'teacher',
+    });
+
+    return attachFeedbacksToDeliveries(records, feedbacks);
   } catch {
     console.error('Error fetching all deliveries');
     return [];
@@ -139,10 +237,13 @@ export async function getAllDeliveries() {
 export async function getUserDelivery(assignmentId: string, userId: string) {
   const pb = await createServerClient();
   try {
-    const record = await pb.collection('deliveries').getFirstListItem<Delivery>(
-        `assignment = "${assignmentId}" && student = "${userId}"`
-    );
-    return record;
+    const records = await pb.collection('deliveries').getFullList<Delivery>({
+      filter: `assignment = "${assignmentId}" && student = "${userId}"`,
+      sort: '-created',
+      expand: 'assignment',
+    });
+    const feedbacks = await getFeedbacksForStudent(pb, userId);
+    return attachCorrectionContext(attachFeedbacksToDeliveries(records, feedbacks))[0] || null;
   } catch {
     // It's normal to not have a delivery yet
     return null;
@@ -157,7 +258,8 @@ export async function getUserDeliveries(userId: string) {
         sort: '-created',
         expand: 'assignment'
     });
-    return records;
+    const feedbacks = await getFeedbacksForStudent(pb, userId);
+    return attachCorrectionContext(attachFeedbacksToDeliveries(records, feedbacks));
   } catch (error) {
     console.error('Error fetching user deliveries:', error);
     return [];
@@ -170,7 +272,8 @@ export async function getDeliveryById(deliveryId: string) {
     const record = await pb.collection('deliveries').getOne<Delivery>(deliveryId, {
       expand: 'student,assignment'
     });
-    return record;
+    const feedbacks = await getFeedbacksForDeliveries(pb, [deliveryId]);
+    return attachFeedbacksToDeliveries([record], feedbacks)[0];
   } catch (error) {
     console.error('Error fetching delivery by ID:', error);
     return null;

@@ -3,6 +3,8 @@
 import { Delivery, Assignment } from "@/types";
 import { useState } from "react";
 import Link from "next/link";
+import { approveAssignmentForAllStudents } from "@/lib/actions";
+import { useRouter } from "next/navigation";
 
 interface TeacherDeliveriesProps {
   deliveries: Delivery[];
@@ -10,9 +12,12 @@ interface TeacherDeliveriesProps {
 }
 
 export default function TeacherDeliveries({ deliveries, assignment }: TeacherDeliveriesProps) {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("submitted");
   const [verdictFilter, setVerdictFilter] = useState("all");
+  const [isApprovingAll, setIsApprovingAll] = useState(false);
+  const [bulkApprovalMessage, setBulkApprovalMessage] = useState<string | null>(null);
   
   const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL?.replace(/\/$/, "") || "";
 
@@ -31,14 +36,60 @@ export default function TeacherDeliveries({ deliveries, assignment }: TeacherDel
     return matchesSearch && matchesStatus && matchesVerdict;
   }).sort((a, b) => new Date(a.created).getTime() - new Date(b.created).getTime());
 
+  const handleApproveAll = async () => {
+    const confirmed = window.confirm(
+      `Se aprobaran todos los estudiantes para "${assignment.title}". Para quienes no tengan entrega, se creara una entrega administrativa con nota 10.`
+    );
+
+    if (!confirmed) return;
+
+    setIsApprovingAll(true);
+    setBulkApprovalMessage(null);
+
+    try {
+      const result = await approveAssignmentForAllStudents(assignment.id);
+
+      if (!result.success) {
+        setBulkApprovalMessage(result.error || "No se pudo completar la aprobacion masiva.");
+        return;
+      }
+
+      setBulkApprovalMessage(
+        `Aprobacion completada: ${result.createdFeedbacks} devoluciones creadas, ${result.createdDeliveries} entregas administrativas nuevas y ${result.updatedDeliveries} entregas existentes actualizadas.`
+      );
+      router.refresh();
+    } catch (error) {
+      console.error(error);
+      setBulkApprovalMessage("No se pudo completar la aprobacion masiva.");
+    } finally {
+      setIsApprovingAll(false);
+    }
+  };
+
   return (
     <div className="bg-white dark:bg-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-700 p-6">
-      <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-        <span className="p-1 bg-blue-100 dark:bg-blue-900 rounded-md">
-            <svg className="w-5 h-5 text-blue-600 dark:text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-        </span>
-        Entregas ({filteredDeliveries.length})
-      </h2>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <span className="p-1 bg-blue-100 dark:bg-blue-900 rounded-md">
+              <svg className="w-5 h-5 text-blue-600 dark:text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </span>
+          Entregas ({filteredDeliveries.length})
+        </h2>
+        <button
+          type="button"
+          onClick={handleApproveAll}
+          disabled={isApprovingAll}
+          className="inline-flex items-center justify-center rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isApprovingAll ? "Aprobando..." : "Aprobar a todos"}
+        </button>
+      </div>
+
+      {bulkApprovalMessage && (
+        <div className="mb-4 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+          {bulkApprovalMessage}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="mb-6 flex flex-col sm:flex-row gap-4">

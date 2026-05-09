@@ -76,9 +76,31 @@ export interface Delivery extends BaseModel {
   aiVerdict?: 'Aprobado' | 'Corregir y reenviar';
   verdict?: 'Aprobado' | 'Corregir y reenviar';
   history?: any[];
+  latestFeedback?: DeliveryFeedback;
+  feedbacks?: DeliveryFeedback[];
   expand?: {
     student?: User;
     assignment?: Assignment;
+  };
+}
+
+export interface DeliveryFeedback extends BaseModel {
+  delivery: string;
+  assignment: string;
+  student: string;
+  teacher?: string;
+  grade?: number;
+  feedback?: string;
+  verdict?: 'Aprobado' | 'Corregir y reenviar';
+  aiGrade?: number;
+  aiFeedback?: string;
+  aiVerdict?: 'Aprobado' | 'Corregir y reenviar';
+  sentAt: string;
+  expand?: {
+    delivery?: Delivery;
+    assignment?: Assignment;
+    student?: User;
+    teacher?: User;
   };
 }
 

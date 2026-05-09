@@ -315,7 +315,7 @@ export default function TeacherGradingView({ delivery, assignment }: TeacherGrad
                                 
                                 <div className="mb-4">
                                     <h4 className="text-sm font-bold text-zinc-700 dark:text-zinc-300 mb-2">Devolución enviada:</h4>
-                                    <div className="prose prose-sm max-w-none text-zinc-600 dark:text-zinc-400 bg-white dark:bg-zinc-950 p-4 rounded border border-zinc-200 dark:border-zinc-800">
+                                    <div className="prose prose-sm max-w-none bg-white text-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 p-4 rounded border border-zinc-200 dark:border-zinc-700 prose-headings:text-zinc-900 dark:prose-headings:text-zinc-100 prose-p:text-zinc-700 dark:prose-p:text-zinc-200 prose-li:text-zinc-700 dark:prose-li:text-zinc-200 prose-strong:text-zinc-900 dark:prose-strong:text-zinc-100 prose-code:text-blue-700 dark:prose-code:text-blue-200 prose-code:bg-blue-50 dark:prose-code:bg-blue-950/70 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none prose-a:text-blue-600 dark:prose-a:text-blue-300">
                                         <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
                                             {historyItem.feedback}
                                         </ReactMarkdown>

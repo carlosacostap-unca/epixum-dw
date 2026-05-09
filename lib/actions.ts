@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { getPresignedUploadUrl, getPresignedDownloadUrl, configureBucketCors } from "./s3";
 import { generateAIEvaluation } from "./ai";
 import { Assignment } from "@/types";
+import PocketBase from "pocketbase";
 
 export async function ensureCorsConfigured() {
   try {
@@ -14,6 +15,20 @@ export async function ensureCorsConfigured() {
     console.error("Failed to configure CORS:", error);
     return { success: false, error: String(error) };
   }
+}
+
+async function createAdminClient() {
+  const url = process.env['NEXT_PUBLIC_POCKETBASE_URL'];
+  const email = process.env['POCKETBASE_ADMIN'];
+  const password = process.env['POCKETBASE_PASSWORD'];
+
+  if (!url || !email || !password) {
+    throw new Error("PocketBase admin credentials are not configured");
+  }
+
+  const adminPb = new PocketBase(url);
+  await (adminPb as any).admins.authWithPassword(email, password);
+  return adminPb;
 }
 
 export async function getUploadUrl(filename: string, fileType: string) {
@@ -521,7 +536,9 @@ export async function createDelivery(formData: FormData) {
   }
 }
 
-export async function updateDelivery(deliveryId: string, formData: FormData) {
+// Kept temporarily as a reference while the delivery feedback migration settles.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function updateDeliveryLegacy(deliveryId: string, formData: FormData) {
   const pb = await createServerClient();
   const user = pb.authStore.model;
 
@@ -537,11 +554,64 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
   // We need to fetch the delivery to check ownership, 
   // although PocketBase API rules should handle this, it's good to be explicit or just try/catch
   let currentDelivery;
+  let latestFeedback: any = null;
   try {
     currentDelivery = await pb.collection('deliveries').getOne(deliveryId, { expand: 'assignment' });
+    try {
+      latestFeedback = await pb.collection('delivery_feedbacks').getFirstListItem(
+        `delivery = "${deliveryId}"`,
+        { sort: '-sentAt' }
+      );
+    } catch {
+      latestFeedback = null;
+    }
+    if (!latestFeedback) {
+      try {
+        const previousDeliveries = await pb.collection('deliveries').getFullList({
+          filter: `assignment = "${currentDelivery.assignment}" && student = "${currentDelivery.student}" && status = "graded" && created < "${currentDelivery.created}"`,
+          sort: '-created',
+        });
+
+        for (const previousDelivery of previousDeliveries) {
+          try {
+            const previousFeedback = await pb.collection('delivery_feedbacks').getFirstListItem(
+              `delivery = "${previousDelivery.id}"`,
+              { sort: '-sentAt' }
+            );
+            if (previousFeedback?.verdict === 'Corregir y reenviar') {
+              latestFeedback = previousFeedback;
+              break;
+            }
+          } catch {}
+        }
+      } catch {}
+    }
+
+    if (!latestFeedback) {
+      try {
+        const previousDeliveries = await pb.collection('deliveries').getFullList({
+          filter: `assignment = "${currentDelivery.assignment}" && student = "${currentDelivery.student}" && status = "graded" && created < "${currentDelivery.created}"`,
+          sort: '-created',
+        });
+
+        for (const previousDelivery of previousDeliveries) {
+          try {
+            const previousFeedback = await pb.collection('delivery_feedbacks').getFirstListItem(
+              `delivery = "${previousDelivery.id}"`,
+              { sort: '-sentAt' }
+            );
+            if (previousFeedback?.verdict === 'Corregir y reenviar') {
+              latestFeedback = previousFeedback;
+              break;
+            }
+          } catch {}
+        }
+      } catch {}
+    }
+
     const assignment = currentDelivery.expand?.assignment;
     if (assignment) {
-      const isCorrection = currentDelivery.verdict === 'Corregir y reenviar';
+      const isCorrection = latestFeedback?.verdict === 'Corregir y reenviar';
       let limitDate = assignment.dueDate ? new Date(assignment.dueDate) : null;
       if (isCorrection && assignment.correctionDueDate) {
         limitDate = new Date(assignment.correctionDueDate);
@@ -625,6 +695,140 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
   }
 }
 
+export async function updateDelivery(deliveryId: string, formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  const repositoryUrl = (formData.get('repositoryUrl') as string)?.trim();
+  const contentStr = (formData.get('content') as string);
+  const status = (formData.get('status') as string);
+  const assignmentId = (formData.get('assignmentId') as string)?.trim();
+
+  let currentDelivery;
+  let latestFeedback: any = null;
+
+  try {
+    currentDelivery = await pb.collection('deliveries').getOne(deliveryId, { expand: 'assignment' });
+    try {
+      latestFeedback = await pb.collection('delivery_feedbacks').getFirstListItem(
+        `delivery = "${deliveryId}"`,
+        { sort: '-sentAt' }
+      );
+    } catch {
+      latestFeedback = null;
+    }
+
+    if (!latestFeedback) {
+      try {
+        const previousDeliveries = await pb.collection('deliveries').getFullList({
+          filter: `assignment = "${currentDelivery.assignment}" && student = "${currentDelivery.student}" && status = "graded" && created < "${currentDelivery.created}"`,
+          sort: '-created',
+        });
+
+        for (const previousDelivery of previousDeliveries) {
+          try {
+            const previousFeedback = await pb.collection('delivery_feedbacks').getFirstListItem(
+              `delivery = "${previousDelivery.id}"`,
+              { sort: '-sentAt' }
+            );
+            if (previousFeedback?.verdict === 'Corregir y reenviar') {
+              latestFeedback = previousFeedback;
+              break;
+            }
+          } catch {}
+        }
+      } catch {}
+    }
+
+    const assignment = currentDelivery.expand?.assignment;
+    if (assignment) {
+      const isCorrection = latestFeedback?.verdict === 'Corregir y reenviar';
+      let limitDate = assignment.dueDate ? new Date(assignment.dueDate) : null;
+      if (isCorrection && assignment.correctionDueDate) {
+        limitDate = new Date(assignment.correctionDueDate);
+      }
+
+      const isSpecialStudent = user.email === 'carlosacostap@sfvc.edu.ar';
+      if (!isSpecialStudent && status === 'submitted' && limitDate && limitDate < new Date()) {
+        return { success: false, error: 'La fecha limite para este trabajo practico ha pasado.' };
+      }
+    }
+  } catch {
+    return { success: false, error: 'Delivery not found' };
+  }
+
+  if (!repositoryUrl && !contentStr && !status) {
+     return { success: false, error: 'Nothing to update' };
+  }
+
+  try {
+    const data: any = {};
+    if (repositoryUrl) data.repositoryUrl = repositoryUrl;
+    if (status) data.status = status;
+    if (contentStr) {
+      try {
+        data.content = JSON.parse(contentStr);
+      } catch {
+        data.content = contentStr;
+      }
+    }
+
+    if ((status === 'submitted' || status === 'draft') && currentDelivery.status === 'graded') {
+      const newDelivery = await pb.collection('deliveries').create({
+        assignment: currentDelivery.assignment,
+        student: user.id,
+        status,
+        ...(repositoryUrl ? { repositoryUrl } : {}),
+        ...(contentStr ? { content: data.content } : {}),
+      });
+
+      if (status === 'submitted') {
+        try {
+          const drafts = await pb.collection('deliveries').getFullList({
+            filter: `assignment = "${currentDelivery.assignment}" && student = "${user.id}" && status = "draft" && id != "${newDelivery.id}"`
+          });
+
+          for (const draft of drafts) {
+            await pb.collection('deliveries').delete(draft.id);
+          }
+        } catch (draftError) {
+          console.error("Failed to clean up drafts:", draftError);
+        }
+      }
+
+      if (assignmentId) revalidatePath(`/assignments/${assignmentId}`);
+      return { success: true, id: newDelivery.id };
+    }
+
+    await pb.collection('deliveries').update(deliveryId, data);
+
+    if (status === 'submitted') {
+      try {
+        const actualAssignmentId = assignmentId || currentDelivery.assignment;
+        const drafts = await pb.collection('deliveries').getFullList({
+          filter: `assignment = "${actualAssignmentId}" && student = "${user.id}" && status = "draft" && id != "${deliveryId}"`
+        });
+
+        for (const draft of drafts) {
+          await pb.collection('deliveries').delete(draft.id);
+        }
+      } catch (draftError) {
+        console.error("Failed to clean up drafts:", draftError);
+      }
+    }
+
+    if (assignmentId) revalidatePath(`/assignments/${assignmentId}`);
+    return { success: true, id: deliveryId };
+  } catch (error) {
+    console.error('Failed to update delivery:', error);
+    return { success: false, error: 'Failed to update delivery' };
+  }
+}
+
 export async function gradeDelivery(deliveryId: string, formData: FormData) {
   const pb = await createServerClient();
   const user = pb.authStore.model;
@@ -639,20 +843,131 @@ export async function gradeDelivery(deliveryId: string, formData: FormData) {
   const assignmentId = formData.get('assignmentId') as string;
 
   try {
-    const data: any = {
-      status: 'graded'
+    const delivery = await pb.collection('deliveries').getOne(deliveryId);
+    const feedbackData: any = {
+      delivery: deliveryId,
+      assignment: delivery.assignment,
+      student: delivery.student,
+      teacher: user.id,
+      sentAt: new Date().toISOString(),
     };
-    if (grade) data.grade = parseFloat(grade);
-    if (feedback) data.feedback = feedback;
-    if (verdict) data.verdict = verdict;
+    if (grade) feedbackData.grade = parseFloat(grade);
+    if (feedback) feedbackData.feedback = feedback;
+    if (verdict) feedbackData.verdict = verdict;
+    if (delivery.aiGrade !== undefined && delivery.aiGrade !== null) feedbackData.aiGrade = delivery.aiGrade;
+    if (delivery.aiFeedback) feedbackData.aiFeedback = delivery.aiFeedback;
+    if (delivery.aiVerdict) feedbackData.aiVerdict = delivery.aiVerdict;
 
-    await pb.collection('deliveries').update(deliveryId, data);
+    await pb.collection('delivery_feedbacks').create(feedbackData);
+    await pb.collection('deliveries').update(deliveryId, { status: 'graded' });
     
     if (assignmentId) revalidatePath(`/assignments/${assignmentId}`);
+    revalidatePath(`/deliveries/${deliveryId}`);
     return { success: true, id: deliveryId };
   } catch (error) {
     console.error('Failed to grade delivery:', error);
     return { success: false, error: 'Failed to grade delivery' };
+  }
+}
+
+export async function approveAssignmentForAllStudents(assignmentId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || (user.role !== 'docente' && user.role !== 'admin')) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  try {
+    const adminPb = await createAdminClient();
+    await adminPb.collection('assignments').getOne(assignmentId);
+
+    const students = await adminPb.collection('users').getFullList({
+      filter: 'role = "estudiante"',
+      fields: 'id',
+    });
+    const deliveries = await adminPb.collection('deliveries').getFullList({
+      filter: `assignment = "${assignmentId}"`,
+      sort: '-created',
+      fields: 'id,student,status,created',
+    });
+    const feedbacks = await adminPb.collection('delivery_feedbacks').getFullList({
+      filter: `assignment = "${assignmentId}"`,
+      sort: '-sentAt',
+      fields: 'id,student,verdict,sentAt',
+    });
+
+    const latestDeliveryByStudent = new Map<string, any>();
+    for (const delivery of deliveries) {
+      if (!latestDeliveryByStudent.has(delivery.student)) {
+        latestDeliveryByStudent.set(delivery.student, delivery);
+      }
+    }
+
+    const approvedStudents = new Set(
+      feedbacks
+        .filter((feedback) => feedback.verdict === 'Aprobado')
+        .map((feedback) => feedback.student)
+    );
+
+    const sentAt = new Date().toISOString();
+    const feedbackText = "<p>Desafio aprobado por trabajo realizado en clase. Este desafio no requeria entrega digital.</p>";
+    let createdDeliveries = 0;
+    let updatedDeliveries = 0;
+    let createdFeedbacks = 0;
+    let skippedAlreadyApproved = 0;
+
+    for (const student of students) {
+      if (approvedStudents.has(student.id)) {
+        skippedAlreadyApproved++;
+        continue;
+      }
+
+      let delivery = latestDeliveryByStudent.get(student.id);
+
+      if (!delivery) {
+        delivery = await adminPb.collection('deliveries').create({
+          assignment: assignmentId,
+          student: student.id,
+          status: 'graded',
+          content: {
+            administrativeApproval: true,
+            reason: 'No requiere entrega digital',
+          },
+        });
+        createdDeliveries++;
+      } else if (delivery.status !== 'graded') {
+        await adminPb.collection('deliveries').update(delivery.id, { status: 'graded' });
+        updatedDeliveries++;
+      }
+
+      await adminPb.collection('delivery_feedbacks').create({
+        delivery: delivery.id,
+        assignment: assignmentId,
+        student: student.id,
+        teacher: user.id,
+        grade: 10,
+        feedback: feedbackText,
+        verdict: 'Aprobado',
+        sentAt,
+      });
+      createdFeedbacks++;
+    }
+
+    revalidatePath(`/assignments/${assignmentId}`);
+    revalidatePath('/course-dashboard');
+
+    return {
+      success: true,
+      createdDeliveries,
+      updatedDeliveries,
+      createdFeedbacks,
+      skippedAlreadyApproved,
+      totalStudents: students.length,
+    };
+  } catch (error) {
+    console.error('Failed to approve assignment for all students:', error);
+    return { success: false, error: 'Failed to approve assignment for all students' };
   }
 }
 
