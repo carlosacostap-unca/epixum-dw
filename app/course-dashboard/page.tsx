@@ -36,6 +36,9 @@ type AssignmentCourseStatus = {
 const specialDeadlineExemptEmail = 'carlosacostap@sfvc.edu.ar';
 const onTrackApprovalRate = 70;
 const regularApprovalRate = 35;
+const administrativelyApprovedAssignmentTitles = new Set([
+  'Desafío del Trabajo Práctico 1',
+]);
 
 const courseStateStyles: Record<CourseState, string> = {
   'Aprobado': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
@@ -69,9 +72,19 @@ function isPastDue(assignment: Assignment, student: User, delivery?: Delivery) {
   return limitDate ? limitDate < new Date() : false;
 }
 
-function getExpiredAssignments(assignments: Assignment[]) {
+function isAdministrativelyApprovedAssignment(assignment: Assignment) {
+  return administrativelyApprovedAssignmentTitles.has(assignment.title);
+}
+
+function getPerformanceAssignments(assignments: Assignment[]) {
   const now = new Date();
-  return assignments.filter((assignment) => assignment.dueDate && new Date(assignment.dueDate) <= now);
+  return assignments.filter((assignment) => {
+    if (isAdministrativelyApprovedAssignment(assignment)) {
+      return true;
+    }
+
+    return assignment.dueDate && new Date(assignment.dueDate) <= now;
+  });
 }
 
 function getCourseState(student: User, expiredApprovedCount: number, expiredSubmittedCount: number, expiredAssignmentCount: number): CourseState {
@@ -101,7 +114,7 @@ function getPerformance(approvedCount: number, assignmentCount: number) {
 }
 
 function buildStudentStatuses(students: User[], assignments: Assignment[], deliveries: Delivery[]) {
-  const expiredAssignmentIds = new Set(getExpiredAssignments(assignments).map((assignment) => assignment.id));
+  const expiredAssignmentIds = new Set(getPerformanceAssignments(assignments).map((assignment) => assignment.id));
   const expiredAssignmentCount = expiredAssignmentIds.size;
 
   return students.map<StudentCourseStatus>((student) => {
@@ -324,7 +337,7 @@ export default async function CourseDashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <MetricCard label="Estudiantes" value={totalStudents} detail="Total de estudiantes registrados" tone="bg-blue-500" />
-        <MetricCard label="Rendimiento promedio" value={`${averagePerformance}%`} detail="Aprobados sobre trabajos practicos vencidos" tone="bg-emerald-500" />
+        <MetricCard label="Rendimiento promedio" value={`${averagePerformance}%`} detail="Aprobados sobre trabajos computables" tone="bg-emerald-500" />
         <MetricCard label="Pendientes de correccion" value={pendingReviews} detail={`${overdueItems} faltantes o reenvios fuera de plazo`} tone="bg-amber-500" />
       </div>
 
@@ -443,7 +456,7 @@ export default async function CourseDashboardPage() {
                       <span className="w-10 text-right font-medium text-zinc-900 dark:text-zinc-100">{status.performance}%</span>
                     </div>
                     <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
-                      {status.expiredApprovedCount}/{status.expiredAssignmentCount} TPs vencidos aprobados
+                      {status.expiredApprovedCount}/{status.expiredAssignmentCount} TPs computables aprobados
                     </p>
                   </td>
                   <td className="px-6 py-4">{status.expiredSubmittedCount}/{status.expiredAssignmentCount}</td>
