@@ -22,6 +22,23 @@ export default async function Home() {
                 Curso de Diseño Web
                 </h1>
             </header>
+
+            <section className="max-w-4xl mx-auto mb-8 rounded-xl border border-amber-300 bg-amber-50 p-5 text-amber-950 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+                <div className="flex gap-4">
+                    <div className="mt-1 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200">
+                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h2 className="text-lg font-bold">Aviso importante sobre entregas</h2>
+                        <p className="mt-2 leading-relaxed">
+                            Se habilitaron las entregas de todos los trabajos prácticos y desafíos hasta el <strong>17 de mayo de 2026 a las 23:59 horas</strong>.
+                            Luego de esa fecha no se permitirán enviar trabajos prácticos vencidos, sin excepción.
+                        </p>
+                    </div>
+                </div>
+            </section>
             
             <StudentGradesSummary deliveries={userDeliveries} assignments={assignments} userEmail={user.email} />
 
