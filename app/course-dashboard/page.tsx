@@ -36,8 +36,8 @@ type AssignmentCourseStatus = {
 const specialDeadlineExemptEmail = 'carlosacostap@sfvc.edu.ar';
 const onTrackApprovalRate = 70;
 const regularApprovalRate = 35;
-const administrativelyApprovedAssignmentTitles = new Set([
-  'Desafío del Trabajo Práctico 1',
+const administrativelyApprovedAssignmentIds = new Set([
+  'vpl8hb0pc7n5ltv',
 ]);
 
 const courseStateStyles: Record<CourseState, string> = {
@@ -73,7 +73,7 @@ function isPastDue(assignment: Assignment, student: User, delivery?: Delivery) {
 }
 
 function isAdministrativelyApprovedAssignment(assignment: Assignment) {
-  return administrativelyApprovedAssignmentTitles.has(assignment.title);
+  return administrativelyApprovedAssignmentIds.has(assignment.id);
 }
 
 function getPerformanceAssignments(assignments: Assignment[]) {
