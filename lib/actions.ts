@@ -27,7 +27,11 @@ async function createAdminClient() {
   }
 
   const adminPb = new PocketBase(url);
-  await (adminPb as any).admins.authWithPassword(email, password);
+  try {
+    await adminPb.collection('_superusers').authWithPassword(email, password);
+  } catch {
+    await (adminPb as any).admins.authWithPassword(email, password);
+  }
   return adminPb;
 }
 
@@ -968,6 +972,129 @@ export async function approveAssignmentForAllStudents(assignmentId: string) {
   } catch (error) {
     console.error('Failed to approve assignment for all students:', error);
     return { success: false, error: 'Failed to approve assignment for all students' };
+  }
+}
+
+export async function approveAssignmentForStudent(assignmentId: string, studentId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || (user.role !== 'docente' && user.role !== 'admin')) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  try {
+    const adminPb = await createAdminClient();
+    await adminPb.collection('assignments').getOne(assignmentId);
+    const student = await adminPb.collection('users').getOne(studentId);
+
+    if (student.role !== 'estudiante') {
+      return { success: false, error: 'El usuario seleccionado no es estudiante.' };
+    }
+
+    const existingApprovedFeedbacks = await adminPb.collection('delivery_feedbacks').getFullList({
+      filter: `assignment = "${assignmentId}" && student = "${studentId}" && verdict = "Aprobado"`,
+      fields: 'id',
+    });
+
+    if (existingApprovedFeedbacks.length > 0) {
+      revalidatePath(`/assignments/${assignmentId}`);
+      revalidatePath('/');
+      revalidatePath('/course-dashboard');
+      return { success: true, alreadyApproved: true };
+    }
+
+    const deliveries = await adminPb.collection('deliveries').getFullList({
+      filter: `assignment = "${assignmentId}" && student = "${studentId}"`,
+      sort: '-created',
+      fields: 'id,status,created',
+    });
+
+    let delivery = deliveries[0];
+
+    if (!delivery) {
+      delivery = await adminPb.collection('deliveries').create({
+        assignment: assignmentId,
+        student: studentId,
+        status: 'graded',
+        content: {
+          administrativeApproval: true,
+          reason: 'No requiere entrega digital',
+        },
+      });
+    } else if (delivery.status !== 'graded') {
+      delivery = await adminPb.collection('deliveries').update(delivery.id, { status: 'graded' });
+    }
+
+    await adminPb.collection('delivery_feedbacks').create({
+      delivery: delivery.id,
+      assignment: assignmentId,
+      student: studentId,
+      teacher: user.id,
+      grade: 10,
+      feedback: '<p>Trabajo aprobado. No requiere entrega digital.</p>',
+      verdict: 'Aprobado',
+      sentAt: new Date().toISOString(),
+    });
+
+    revalidatePath(`/assignments/${assignmentId}`);
+    revalidatePath('/');
+    revalidatePath('/course-dashboard');
+
+    return { success: true, alreadyApproved: false };
+  } catch (error) {
+    console.error('Failed to approve assignment for student:', error);
+    return { success: false, error: 'No se pudo aprobar al estudiante.' };
+  }
+}
+
+export async function unapproveAssignmentForStudent(assignmentId: string, studentId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || (user.role !== 'docente' && user.role !== 'admin')) {
+    return { success: false, error: 'Unauthorized' };
+  }
+
+  try {
+    const adminPb = await createAdminClient();
+    await adminPb.collection('assignments').getOne(assignmentId);
+    const student = await adminPb.collection('users').getOne(studentId);
+
+    if (student.role !== 'estudiante') {
+      return { success: false, error: 'El usuario seleccionado no es estudiante.' };
+    }
+
+    const approvedFeedbacks = await adminPb.collection('delivery_feedbacks').getFullList({
+      filter: `assignment = "${assignmentId}" && student = "${studentId}" && verdict = "Aprobado"`,
+      fields: 'id',
+    });
+
+    for (const feedback of approvedFeedbacks) {
+      await adminPb.collection('delivery_feedbacks').delete(feedback.id);
+    }
+
+    const deliveries = await adminPb.collection('deliveries').getFullList({
+      filter: `assignment = "${assignmentId}" && student = "${studentId}"`,
+      sort: '-created',
+      fields: 'id,status,content,repositoryUrl',
+    });
+
+    for (const delivery of deliveries) {
+      const isAdministrativeDelivery = delivery.content?.administrativeApproval === true && !delivery.repositoryUrl;
+      await adminPb.collection('deliveries').update(delivery.id, {
+        status: isAdministrativeDelivery ? 'draft' : 'submitted',
+      });
+    }
+
+    revalidatePath(`/assignments/${assignmentId}`);
+    revalidatePath('/');
+    revalidatePath('/course-dashboard');
+
+    return { success: true, removedFeedbacks: approvedFeedbacks.length };
+  } catch (error) {
+    console.error('Failed to unapprove assignment for student:', error);
+    return { success: false, error: 'No se pudo desmarcar la aprobacion del estudiante.' };
   }
 }
 

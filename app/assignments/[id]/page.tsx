@@ -1,11 +1,13 @@
-import { getAssignment, getLinks, getDeliveries, getUserDelivery } from "@/lib/data";
-import { Assignment, Link as LinkType, Delivery, Inquiry } from "@/types";
+import { getAssignment, getLinks, getDeliveries, getUserDelivery, getStudents } from "@/lib/data";
+import { Assignment, Link as LinkType, Delivery, Inquiry, User } from "@/types";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/pocketbase-server";
 import AssignmentDetailsManagement from "@/components/AssignmentDetailsManagement";
 import StudentDelivery from "@/components/StudentDelivery";
 import TeacherDeliveries from "@/components/TeacherDeliveries";
+import AdministrativeApprovalList from "@/components/AdministrativeApprovalList";
+import AdministrativeAssignmentStatus from "@/components/AdministrativeAssignmentStatus";
 import { getInquiries } from "@/lib/actions-inquiries";
 import InquiryList from "@/components/inquiries/InquiryList";
 import ResourceLink from "@/components/ResourceLink";
@@ -21,15 +23,20 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
   const user = await getCurrentUser();
   let deliveries: Delivery[] = [];
   let userDelivery: Delivery | null = null;
+  let students: User[] = [];
   
   try {
     assignment = await getAssignment(id);
     links = await getLinks(id, 'assignment');
     inquiries = await getInquiries({ assignmentId: id });
+    const isAdministrativeApprovalAssignment = assignment.title.trim().toLowerCase() === 'cuestionario 1';
     
     if (user) {
         if (user.role === 'docente' || user.role === 'admin') {
             deliveries = await getDeliveries(id);
+            if (isAdministrativeApprovalAssignment) {
+              students = await getStudents();
+            }
         } else if (user.role === 'estudiante') {
             userDelivery = await getUserDelivery(id, user.id);
         }
@@ -40,12 +47,17 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
   }
 
   const isAuthorized = user && (user.role === 'docente' || user.role === 'admin');
+  const isAdministrativeApprovalAssignment = assignment.title.trim().toLowerCase() === 'cuestionario 1';
 
   if (isAuthorized) {
     return (
         <div className="container mx-auto p-8 min-h-screen space-y-8">
             <AssignmentDetailsManagement user={user} assignment={assignment} links={links} inquiries={inquiries} />
-            <TeacherDeliveries deliveries={deliveries} assignment={assignment} />
+            {isAdministrativeApprovalAssignment ? (
+              <AdministrativeApprovalList assignment={assignment} students={students} deliveries={deliveries} />
+            ) : (
+              <TeacherDeliveries deliveries={deliveries} assignment={assignment} />
+            )}
         </div>
     );
   }
@@ -101,14 +113,18 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
       </div>
 
       {user && user.role === 'estudiante' && (
-        <StudentDelivery 
+        isAdministrativeApprovalAssignment ? (
+          <AdministrativeAssignmentStatus delivery={userDelivery} />
+        ) : (
+          <StudentDelivery 
             assignmentId={assignment.id} 
             delivery={userDelivery}
             studentName={user.name}
             assignmentTitle={assignment.title}
             assignment={assignment}
             isSpecialStudent={isSpecialStudent}
-        />
+          />
+        )
       )}
     </div>
   );
