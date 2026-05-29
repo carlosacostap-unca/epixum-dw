@@ -36,6 +36,19 @@ async function createAdminClient() {
   return adminPb;
 }
 
+async function createAdministrativeClient(authenticatedPb: PocketBase) {
+  try {
+    return await createAdminClient();
+  } catch (error) {
+    console.error("Falling back to authenticated PocketBase client for administrative approval:", error);
+    return authenticatedPb;
+  }
+}
+
+function isAdministrativeApprovalAssignment(assignment: Pick<Assignment, 'title'>) {
+  return assignment.title?.trim().toLowerCase() === 'cuestionario 1';
+}
+
 async function getFeedbackTeacherId(adminPb: PocketBase, userId?: string) {
   if (!userId) return undefined;
 
@@ -926,8 +939,12 @@ export async function approveAssignmentForAllStudents(assignmentId: string) {
   }
 
   try {
-    const adminPb = await createAdminClient();
-    await adminPb.collection('assignments').getOne(assignmentId);
+    const adminPb = await createAdministrativeClient(pb);
+    const assignment = await adminPb.collection('assignments').getOne<Assignment>(assignmentId);
+
+    if (!isAdministrativeApprovalAssignment(assignment)) {
+      return { success: false, error: 'La aprobacion administrativa solo esta habilitada para Cuestionario 1.' };
+    }
 
     const students = await adminPb.collection('users').getFullList({
       filter: 'role = "estudiante"',
@@ -1034,8 +1051,13 @@ export async function approveAssignmentForStudent(assignmentId: string, studentI
   }
 
   try {
-    const adminPb = await createAdminClient();
-    await adminPb.collection('assignments').getOne(assignmentId);
+    const adminPb = await createAdministrativeClient(pb);
+    const assignment = await adminPb.collection('assignments').getOne<Assignment>(assignmentId);
+
+    if (!isAdministrativeApprovalAssignment(assignment)) {
+      return { success: false, error: 'La aprobacion administrativa solo esta habilitada para Cuestionario 1.' };
+    }
+
     const student = await adminPb.collection('users').getOne(studentId);
     const teacherId = await getFeedbackTeacherId(adminPb, user.id);
 
@@ -1114,8 +1136,13 @@ export async function unapproveAssignmentForStudent(assignmentId: string, studen
   }
 
   try {
-    const adminPb = await createAdminClient();
-    await adminPb.collection('assignments').getOne(assignmentId);
+    const adminPb = await createAdministrativeClient(pb);
+    const assignment = await adminPb.collection('assignments').getOne<Assignment>(assignmentId);
+
+    if (!isAdministrativeApprovalAssignment(assignment)) {
+      return { success: false, error: 'La aprobacion administrativa solo esta habilitada para Cuestionario 1.' };
+    }
+
     const student = await adminPb.collection('users').getOne(studentId);
 
     if (student.role !== 'estudiante') {

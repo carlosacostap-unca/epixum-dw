@@ -80,7 +80,8 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
 - **API Rules**:
     - **List/View Rule**: `student = @request.auth.id || @request.auth.role = "docente" || @request.auth.role = "admin"`
         - *Nota*: Los estudiantes solo ven sus entregas; docentes/admins ven todas.
-    - **Create Rule**: `@request.auth.id != "" && @request.auth.role = "estudiante"`
+    - **Create Rule**: `@request.auth.id != "" && (@request.auth.role = "estudiante" || @request.auth.role = "docente" || @request.auth.role = "admin")`
+        - *Nota*: Docentes/admins pueden crear entregas administrativas para casos especiales como `Cuestionario 1`; la aplicación limita ese flujo a ese trabajo práctico.
     - **Update Rule**: `student = @request.auth.id || @request.auth.role = "docente" || @request.auth.role = "admin"`
         - *Nota*: Estudiantes pueden modificar su entrega, y docentes pueden calificarlas.
     - **Delete Rule**: `student = @request.auth.id || @request.auth.role = "admin"`
