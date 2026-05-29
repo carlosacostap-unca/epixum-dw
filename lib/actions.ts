@@ -50,6 +50,36 @@ async function getFeedbackTeacherId(adminPb: PocketBase, userId?: string) {
   }
 }
 
+async function createApprovalFeedback(
+  adminPb: PocketBase,
+  data: {
+    deliveryId: string;
+    assignmentId: string;
+    studentId: string;
+    teacherId?: string;
+    feedback: string;
+    sentAt?: string;
+  }
+) {
+  try {
+    await adminPb.collection('delivery_feedbacks').create({
+      delivery: data.deliveryId,
+      assignment: data.assignmentId,
+      student: data.studentId,
+      grade: 10,
+      feedback: data.feedback,
+      verdict: 'Aprobado',
+      sentAt: data.sentAt || new Date().toISOString(),
+      ...(data.teacherId ? { teacher: data.teacherId } : {}),
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Failed to create administrative approval feedback:', error);
+    return false;
+  }
+}
+
 export async function getUploadUrl(filename: string, fileType: string) {
   const pb = await createServerClient();
   const user = pb.authStore.model;
@@ -906,7 +936,7 @@ export async function approveAssignmentForAllStudents(assignmentId: string) {
     const deliveries = await adminPb.collection('deliveries').getFullList({
       filter: `assignment = "${assignmentId}"`,
       sort: '-created',
-      fields: 'id,student,status,created',
+      fields: 'id,student,status,created,grade,feedback,verdict',
     });
     const feedbacks = await adminPb.collection('delivery_feedbacks').getFullList({
       filter: `assignment = "${assignmentId}"`,
@@ -948,28 +978,34 @@ export async function approveAssignmentForAllStudents(assignmentId: string) {
           assignment: assignmentId,
           student: student.id,
           status: 'graded',
+          grade: 10,
+          feedback: feedbackText,
+          verdict: 'Aprobado',
           content: {
             administrativeApproval: true,
             reason: 'No requiere entrega digital',
           },
         });
         createdDeliveries++;
-      } else if (delivery.status !== 'graded') {
-        await adminPb.collection('deliveries').update(delivery.id, { status: 'graded' });
+      } else if (delivery.status !== 'graded' || delivery.verdict !== 'Aprobado' || delivery.grade !== 10) {
+        delivery = await adminPb.collection('deliveries').update(delivery.id, {
+          status: 'graded',
+          grade: 10,
+          feedback: feedbackText,
+          verdict: 'Aprobado',
+        });
         updatedDeliveries++;
       }
 
-      await adminPb.collection('delivery_feedbacks').create({
-        delivery: delivery.id,
-        assignment: assignmentId,
-        student: student.id,
-        grade: 10,
+      const feedbackCreated = await createApprovalFeedback(adminPb, {
+        deliveryId: delivery.id,
+        assignmentId,
+        studentId: student.id,
+        teacherId,
         feedback: feedbackText,
-        verdict: 'Aprobado',
         sentAt,
-        ...(teacherId ? { teacher: teacherId } : {}),
       });
-      createdFeedbacks++;
+      if (feedbackCreated) createdFeedbacks++;
     }
 
     revalidatePath(`/assignments/${assignmentId}`);
@@ -997,20 +1033,8 @@ export async function approveAssignmentForStudent(assignmentId: string, studentI
     return { success: false, error: 'Unauthorized' };
   }
 
-  let adminPb: PocketBase | null = null;
-  let createdDeliveryId: string | undefined;
-  let previousDeliverySnapshot:
-    | {
-        id: string;
-        status?: string;
-        grade?: number | null;
-        feedback?: string;
-        verdict?: string;
-      }
-    | undefined;
-
   try {
-    adminPb = await createAdminClient();
+    const adminPb = await createAdminClient();
     await adminPb.collection('assignments').getOne(assignmentId);
     const student = await adminPb.collection('users').getOne(studentId);
     const teacherId = await getFeedbackTeacherId(adminPb, user.id);
@@ -1038,6 +1062,7 @@ export async function approveAssignmentForStudent(assignmentId: string, studentI
     });
 
     let delivery = deliveries[0];
+    const feedbackText = '<p>Trabajo aprobado. No requiere entrega digital.</p>';
 
     if (!delivery) {
       delivery = await adminPb.collection('deliveries').create({
@@ -1045,39 +1070,28 @@ export async function approveAssignmentForStudent(assignmentId: string, studentI
         student: studentId,
         status: 'graded',
         grade: 10,
-        feedback: '<p>Trabajo aprobado. No requiere entrega digital.</p>',
+        feedback: feedbackText,
         verdict: 'Aprobado',
         content: {
           administrativeApproval: true,
           reason: 'No requiere entrega digital',
         },
       });
-      createdDeliveryId = delivery.id;
-    } else if (delivery.status !== 'graded') {
-      previousDeliverySnapshot = {
-        id: delivery.id,
-        status: delivery.status,
-        grade: delivery.grade,
-        feedback: delivery.feedback,
-        verdict: delivery.verdict,
-      };
+    } else if (delivery.status !== 'graded' || delivery.verdict !== 'Aprobado' || delivery.grade !== 10) {
       delivery = await adminPb.collection('deliveries').update(delivery.id, {
         status: 'graded',
         grade: 10,
-        feedback: '<p>Trabajo aprobado. No requiere entrega digital.</p>',
+        feedback: feedbackText,
         verdict: 'Aprobado',
       });
     }
 
-    await adminPb.collection('delivery_feedbacks').create({
-      delivery: delivery.id,
-      assignment: assignmentId,
-      student: studentId,
-      grade: 10,
-      feedback: '<p>Trabajo aprobado. No requiere entrega digital.</p>',
-      verdict: 'Aprobado',
-      sentAt: new Date().toISOString(),
-      ...(teacherId ? { teacher: teacherId } : {}),
+    await createApprovalFeedback(adminPb, {
+      deliveryId: delivery.id,
+      assignmentId,
+      studentId,
+      teacherId,
+      feedback: feedbackText,
     });
 
     revalidatePath(`/assignments/${assignmentId}`);
@@ -1087,26 +1101,6 @@ export async function approveAssignmentForStudent(assignmentId: string, studentI
     return { success: true, alreadyApproved: false };
   } catch (error) {
     console.error('Failed to approve assignment for student:', error);
-
-    if (adminPb && createdDeliveryId) {
-      try {
-        await adminPb.collection('deliveries').delete(createdDeliveryId);
-      } catch (cleanupError) {
-        console.error('Failed to clean up administrative delivery:', cleanupError);
-      }
-    } else if (adminPb && previousDeliverySnapshot) {
-      try {
-        await adminPb.collection('deliveries').update(previousDeliverySnapshot.id, {
-          status: previousDeliverySnapshot.status,
-          grade: previousDeliverySnapshot.grade ?? null,
-          feedback: previousDeliverySnapshot.feedback ?? '',
-          verdict: previousDeliverySnapshot.verdict ?? '',
-        });
-      } catch (cleanupError) {
-        console.error('Failed to restore delivery status:', cleanupError);
-      }
-    }
-
     return { success: false, error: 'No se pudo aprobar al estudiante.' };
   }
 }
