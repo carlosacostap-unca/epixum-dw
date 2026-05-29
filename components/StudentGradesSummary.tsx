@@ -1,5 +1,6 @@
 import { Delivery, Assignment } from "@/types";
 import Link from "next/link";
+import { getDeliveryLimitDate } from "@/lib/delivery-deadlines";
 
 interface StudentGradesSummaryProps {
   deliveries: Delivery[];
@@ -41,12 +42,7 @@ export default function StudentGradesSummary({ deliveries, assignments, userEmai
                 // Find active delivery for this assignment
                 const delivery = activeDeliveries.find(d => d.assignment === assignment.id || d.expand?.assignment?.id === assignment.id);
                 
-                // Calculate due date logic
-                const isCorrection = delivery?.verdict === 'Corregir y reenviar';
-                let limitDate = assignment.dueDate ? new Date(assignment.dueDate) : null;
-                if (isCorrection && assignment.correctionDueDate) {
-                  limitDate = new Date(assignment.correctionDueDate);
-                }
+                const limitDate = getDeliveryLimitDate(assignment, delivery);
                 const isPastDue = isSpecialStudent ? false : (limitDate ? limitDate < new Date() : false);
 
                 let statusLabel = "";

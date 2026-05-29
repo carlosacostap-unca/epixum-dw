@@ -8,6 +8,7 @@ import JSZip from "jszip";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
+import { getDeliveryLimitDate } from "@/lib/delivery-deadlines";
 
 interface StudentDeliveryProps {
   assignmentId: string;
@@ -54,11 +55,7 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
   const isDraft = !!delivery && delivery.status === 'draft';
   const isGraded = !!delivery && delivery.status === 'graded';
   
-  const isCorrection = delivery?.verdict === 'Corregir y reenviar';
-  let limitDate = assignment.dueDate ? new Date(assignment.dueDate) : null;
-  if (isCorrection && assignment.correctionDueDate) {
-    limitDate = new Date(assignment.correctionDueDate);
-  }
+  const limitDate = getDeliveryLimitDate(assignment, delivery);
   const isPastDue = isSpecialStudent ? false : (limitDate ? limitDate < new Date() : false);
 
   useEffect(() => {

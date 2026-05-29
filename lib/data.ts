@@ -164,6 +164,7 @@ function attachCorrectionContext(deliveries: Delivery[]) {
     return {
       ...delivery,
       verdict: 'Corregir y reenviar' as const,
+      latestFeedback: previousCorrection.latestFeedback,
     };
   });
 }

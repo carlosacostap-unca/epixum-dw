@@ -1,4 +1,5 @@
 import { getAllAssignments, getAllDeliveries, getStudents } from "@/lib/data";
+import { getDeliveryLimitDate } from "@/lib/delivery-deadlines";
 import { getCurrentUser } from "@/lib/pocketbase-server";
 import { Assignment, Delivery, User } from "@/types";
 import Link from "next/link";
@@ -55,12 +56,7 @@ function getDeliveryForAssignment(deliveries: Delivery[], assignmentId: string) 
 }
 
 function getLimitDate(assignment: Assignment, delivery?: Delivery) {
-  const isCorrection = delivery?.verdict === 'Corregir y reenviar';
-  if (isCorrection && assignment.correctionDueDate) {
-    return new Date(assignment.correctionDueDate);
-  }
-
-  return assignment.dueDate ? new Date(assignment.dueDate) : null;
+  return getDeliveryLimitDate(assignment, delivery);
 }
 
 function isPastDue(assignment: Assignment, student: User, delivery?: Delivery) {

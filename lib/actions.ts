@@ -6,6 +6,7 @@ import { getPresignedUploadUrl, getPresignedDownloadUrl, configureBucketCors } f
 import { generateAIEvaluation } from "./ai";
 import { Assignment } from "@/types";
 import PocketBase from "pocketbase";
+import { getDeliveryLimitDate } from "./delivery-deadlines";
 
 export async function ensureCorsConfigured() {
   try {
@@ -615,11 +616,10 @@ async function updateDeliveryLegacy(deliveryId: string, formData: FormData) {
 
     const assignment = currentDelivery.expand?.assignment;
     if (assignment) {
-      const isCorrection = latestFeedback?.verdict === 'Corregir y reenviar';
-      let limitDate = assignment.dueDate ? new Date(assignment.dueDate) : null;
-      if (isCorrection && assignment.correctionDueDate) {
-        limitDate = new Date(assignment.correctionDueDate);
-      }
+      const limitDate = getDeliveryLimitDate(assignment, {
+        verdict: latestFeedback?.verdict,
+        latestFeedback,
+      });
       
       const isSpecialStudent = user.email === 'carlosacostap@sfvc.edu.ar';
       if (!isSpecialStudent && status === 'submitted' && limitDate && limitDate < new Date()) {
@@ -750,11 +750,10 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
 
     const assignment = currentDelivery.expand?.assignment;
     if (assignment) {
-      const isCorrection = latestFeedback?.verdict === 'Corregir y reenviar';
-      let limitDate = assignment.dueDate ? new Date(assignment.dueDate) : null;
-      if (isCorrection && assignment.correctionDueDate) {
-        limitDate = new Date(assignment.correctionDueDate);
-      }
+      const limitDate = getDeliveryLimitDate(assignment, {
+        verdict: latestFeedback?.verdict,
+        latestFeedback,
+      });
 
       const isSpecialStudent = user.email === 'carlosacostap@sfvc.edu.ar';
       if (!isSpecialStudent && status === 'submitted' && limitDate && limitDate < new Date()) {

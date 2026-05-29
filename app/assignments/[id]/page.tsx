@@ -12,6 +12,7 @@ import { getInquiries } from "@/lib/actions-inquiries";
 import InquiryList from "@/components/inquiries/InquiryList";
 import ResourceLink from "@/components/ResourceLink";
 import FormattedDate from "@/components/FormattedDate";
+import { getDeliveryLimitDate } from "@/lib/delivery-deadlines";
 
 export const dynamic = 'force-dynamic';
 
@@ -63,6 +64,8 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
   }
 
   const isSpecialStudent = user?.email === 'carlosacostap@sfvc.edu.ar';
+  const isUserCorrection = userDelivery?.verdict === 'Corregir y reenviar';
+  const userLimitDate = getDeliveryLimitDate(assignment, userDelivery);
 
   return (
     <div className="container mx-auto p-8 min-h-screen">
@@ -73,14 +76,14 @@ export default async function AssignmentPage({ params }: { params: Promise<{ id:
             <span className="px-3 py-1 text-sm font-medium text-purple-600 bg-purple-100 rounded-full dark:bg-purple-900 dark:text-purple-200">
                 TP
             </span>
-            {assignment.dueDate && (!userDelivery || userDelivery.verdict !== 'Corregir y reenviar' || !assignment.correctionDueDate) && (
+            {assignment.dueDate && !isUserCorrection && (
                 <span className={`px-3 py-1 text-sm font-medium rounded-full ${new Date(assignment.dueDate) < new Date() ? 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-200' : 'text-orange-600 bg-orange-100 dark:bg-orange-900 dark:text-orange-200'}`}>
                     Vence: <FormattedDate date={assignment.dueDate} locale="es-AR" showTime={true} />
                 </span>
             )}
-            {userDelivery?.verdict === 'Corregir y reenviar' && assignment.correctionDueDate && (
-                <span className={`px-3 py-1 text-sm font-medium rounded-full ${new Date(assignment.correctionDueDate) < new Date() ? 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-200' : 'text-blue-600 bg-blue-100 dark:bg-blue-900 dark:text-blue-200'}`}>
-                    Vence (Reenvío): <FormattedDate date={assignment.correctionDueDate} locale="es-AR" showTime={true} />
+            {isUserCorrection && userLimitDate && (
+                <span className={`px-3 py-1 text-sm font-medium rounded-full ${userLimitDate < new Date() ? 'text-red-600 bg-red-100 dark:bg-red-900 dark:text-red-200' : 'text-blue-600 bg-blue-100 dark:bg-blue-900 dark:text-blue-200'}`}>
+                    Vence (Reenvío): <FormattedDate date={userLimitDate.toISOString()} locale="es-AR" showTime={true} />
                 </span>
             )}
         </div>
