@@ -127,9 +127,9 @@ function attachFeedbacksToDeliveries(deliveries: Delivery[], feedbacks: Delivery
       ...delivery,
       feedbacks: deliveryFeedbacks,
       latestFeedback,
-      grade: latestFeedback?.grade,
-      feedback: latestFeedback?.feedback,
-      verdict: latestFeedback?.verdict,
+      grade: latestFeedback?.grade ?? delivery.grade,
+      feedback: latestFeedback?.feedback ?? delivery.feedback,
+      verdict: latestFeedback?.verdict ?? delivery.verdict,
     };
   });
 }
