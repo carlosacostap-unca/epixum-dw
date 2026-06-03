@@ -123,6 +123,24 @@ export interface PartialExamQuestion extends BaseModel {
   };
 }
 
+export type PartialExamSimulationFinishReason = 'manual' | 'time';
+
+export interface PartialExamSimulation extends BaseModel {
+  partialExam: string;
+  student: string;
+  score: number;
+  totalQuestions: number;
+  answeredQuestions: number;
+  questionIds: string[];
+  answers: Record<string, string>;
+  finishReason: PartialExamSimulationFinishReason;
+  completedAt: string;
+  expand?: {
+    partialExam?: PartialExam;
+    student?: User;
+  };
+}
+
 export interface Delivery extends BaseModel {
   assignment: string;
   student: string;

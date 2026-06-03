@@ -1,5 +1,9 @@
 import ParcialesNav from "@/components/ParcialesNav";
-import { getPartialExamQuestions, getPartialExamsManagementData } from "@/lib/data";
+import {
+  getPartialExamQuestions,
+  getPartialExamsManagementData,
+  getPublishedStudentPartialExams,
+} from "@/lib/data";
 import { getCurrentUser } from "@/lib/pocketbase-server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -9,8 +13,56 @@ export const dynamic = "force-dynamic";
 export default async function PartialExamsPage() {
   const user = await getCurrentUser();
 
-  if (!user || user.role !== "docente") {
+  if (!user || (user.role !== "docente" && user.role !== "estudiante")) {
     redirect("/");
+  }
+
+  if (user.role === "estudiante") {
+    const partialExams = await getPublishedStudentPartialExams();
+
+    return (
+      <div className="container mx-auto min-h-screen p-4 sm:p-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Parciales</h1>
+          <p className="mt-2 text-zinc-500 dark:text-zinc-400">
+            Simulacros disponibles para practicar antes del parcial.
+          </p>
+        </div>
+
+        {partialExams.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-zinc-300 bg-white p-8 text-center text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
+            No hay simulacros publicados por el momento.
+          </div>
+        ) : (
+          <div className="grid gap-4">
+            {partialExams.map((partialExam) => (
+              <article
+                key={partialExam.id}
+                className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-6"
+              >
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200">
+                      Publicado
+                    </span>
+                    <h2 className="mt-3 text-xl font-bold text-zinc-900 dark:text-zinc-100">{partialExam.title}</h2>
+                    <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                      Activa tu camara para iniciar el simulacro. Se mostraran preguntas de a una por vez.
+                    </p>
+                  </div>
+                  <Link
+                    href={`/parciales/${partialExam.id}/simular`}
+                    className="inline-flex justify-center rounded-md bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700"
+                  >
+                    Realizar simulacro
+                  </Link>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   }
 
   const { partialExams, collectionReady } = await getPartialExamsManagementData();

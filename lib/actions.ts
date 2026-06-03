@@ -8,7 +8,7 @@ import {
   generateMultipleChoiceQuestionsFromUnitDocument,
   generateMultipleChoiceQuestionsFromUnitPrompt,
 } from "./ai";
-import { Assignment, PartialExamStatus } from "@/types";
+import { Assignment, PartialExamQuestion, PartialExamSimulationFinishReason, PartialExamStatus } from "@/types";
 import PocketBase from "pocketbase";
 import { getDeliveryLimitDate } from "./delivery-deadlines";
 
@@ -530,6 +530,83 @@ export async function deletePartialExam(partialExamId: string) {
   } catch (error) {
     console.error('Failed to delete partial exam:', error);
     return { success: false, error: 'No se pudo eliminar el parcial' };
+  }
+}
+
+function normalizeRelationIds(value: unknown) {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean);
+  return value ? [String(value)] : [];
+}
+
+export async function recordPartialExamSimulation(params: {
+  partialExamId: string;
+  questionIds: string[];
+  answers: Record<string, string>;
+  finishReason: PartialExamSimulationFinishReason;
+}) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || user.role !== 'estudiante') {
+    return { success: false, error: 'Solo los estudiantes pueden registrar simulacros.' };
+  }
+
+  const partialExamId = params.partialExamId?.trim();
+  const questionIds = Array.from(new Set((params.questionIds || []).map(String).filter(Boolean)));
+
+  if (!partialExamId || questionIds.length === 0) {
+    return { success: false, error: 'No hay preguntas para registrar.' };
+  }
+
+  try {
+    const partialExam = await pb.collection('partial_exams').getOne(partialExamId);
+    if (partialExam.title !== 'Simulacro Mundial FIFA 2026' || partialExam.status !== 'Publicado') {
+      return { success: false, error: 'El simulacro no esta disponible para estudiantes.' };
+    }
+
+    const bankIds = normalizeRelationIds(partialExam.questionBanks);
+    if (bankIds.length === 0) {
+      return { success: false, error: 'El parcial no tiene bancos de preguntas asociados.' };
+    }
+
+    const questionFilter = questionIds.map((questionId) => `id = "${questionId}"`).join(' || ');
+    const unitFilter = bankIds.map((unitId) => `unit = "${unitId}"`).join(' || ');
+    const questions = await pb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
+      filter: `selected = true && (${questionFilter}) && (${unitFilter})`,
+    });
+
+    const questionsById = new Map(questions.map((question) => [question.id, question]));
+    let score = 0;
+    let answeredQuestions = 0;
+
+    for (const questionId of questionIds) {
+      const answer = params.answers?.[questionId];
+      const question = questionsById.get(questionId);
+      if (!question || !answer) continue;
+      answeredQuestions += 1;
+      if (answer === question.correctOptionId) {
+        score += 1;
+      }
+    }
+
+    await pb.collection('partial_exam_simulations').create({
+      partialExam: partialExamId,
+      student: user.id,
+      score,
+      totalQuestions: questionIds.length,
+      answeredQuestions,
+      questionIds,
+      answers: params.answers || {},
+      finishReason: params.finishReason,
+      completedAt: new Date().toISOString(),
+    });
+
+    revalidatePath('/parciales');
+    revalidatePath(`/parciales/${partialExamId}/simulaciones`);
+    return { success: true, score, totalQuestions: questionIds.length };
+  } catch (error) {
+    console.error('Failed to record partial exam simulation:', error);
+    return { success: false, error: 'No se pudo registrar el simulacro.' };
   }
 }
 

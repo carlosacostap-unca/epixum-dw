@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function SimulatePartialExamPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
 
-  if (!user || user.role !== "docente") {
+  if (!user || (user.role !== "docente" && user.role !== "estudiante")) {
     redirect("/");
   }
 
@@ -20,16 +20,23 @@ export default async function SimulatePartialExamPage({ params }: { params: Prom
     notFound();
   }
 
+  const canStudentSimulate =
+    partialExam.status === "Publicado" && partialExam.title === "Simulacro Mundial FIFA 2026";
+
+  if (user.role === "estudiante" && !canStudentSimulate) {
+    redirect("/parciales");
+  }
+
   const questions = await getPartialExamSimulationQuestions(partialExam, 10);
 
   return (
     <div className="container mx-auto min-h-screen p-4 sm:p-6 lg:p-8">
       <div className="mb-6">
         <Link
-          href="/parciales/gestion"
+          href={user.role === "docente" ? "/parciales/gestion" : "/parciales"}
           className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200"
         >
-          Volver a Gestionar parciales
+          {user.role === "docente" ? "Volver a Gestionar parciales" : "Volver a Parciales"}
         </Link>
         <div className="mt-4">
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 sm:text-3xl">
@@ -39,7 +46,7 @@ export default async function SimulatePartialExamPage({ params }: { params: Prom
         </div>
       </div>
 
-      <PartialExamSimulator partialExam={partialExam} questions={questions} />
+      <PartialExamSimulator partialExam={partialExam} questions={questions} recordAttempt={user.role === "estudiante"} />
     </div>
   );
 }

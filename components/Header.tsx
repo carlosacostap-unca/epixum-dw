@@ -26,8 +26,9 @@ export default function Header() {
           // Update cookie
           document.cookie = pb.authStore.exportToCookie({ httpOnly: false });
           setUser(updatedUser as unknown as User);
-        } catch (e: any) {
-          if (e?.status === 404) {
+        } catch (error: unknown) {
+          const responseError = error as { status?: number };
+          if (responseError?.status === 404) {
             // If the user is not found, the session is likely invalid or from an old DB (e.g. localhost cookie conflict)
             // Silence the error and clear auth
             console.warn("User not found (404), clearing invalid session.");
@@ -35,7 +36,7 @@ export default function Header() {
             document.cookie = "pb_auth=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
             setUser(null);
           } else {
-            console.error("Failed to refresh user data", e);
+            console.error("Failed to refresh user data", error);
             setUser(pb.authStore.model as unknown as User);
           }
         }
@@ -90,7 +91,7 @@ export default function Header() {
               Administrar Usuarios
             </Link>
           )}
-          {user?.role === 'docente' && (
+          {(user?.role === 'docente' || user?.role === 'estudiante') && (
             <Link
               href="/parciales"
               className="text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"

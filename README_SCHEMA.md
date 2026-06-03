@@ -80,7 +80,7 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - `topics`: Text
     - `status`: Select (options: "Planificado", "Publicado", "Finalizado") (Default: "Planificado")
 - **API Rules**:
-    - **List/View Rule**: `@request.auth.role = "docente"`
+    - **List/View Rule**: `@request.auth.role = "docente" || (@request.auth.role = "estudiante" && status = "Publicado" && title = "Simulacro Mundial FIFA 2026")`
     - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
 
 ## 4.2. Colección: `partial_exam_units` (Unidades para Banco de Preguntas)
@@ -91,7 +91,7 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - `description`: Text
     - `order`: Number (Integer)
 - **API Rules**:
-    - **List/View Rule**: `@request.auth.role = "docente"`
+    - **List/View Rule**: `@request.auth.role = "docente" || @request.auth.role = "estudiante"`
     - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
 
 ## 4.3. Colección: `partial_exam_unit_documents` (Documentos de Unidad)
@@ -121,8 +121,26 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - `selected`: Bool
     - `sourceReference`: Text
 - **API Rules**:
-    - **List/View Rule**: `@request.auth.role = "docente"`
+    - **List/View Rule**: `@request.auth.role = "docente" || (@request.auth.role = "estudiante" && selected = true)`
     - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
+
+## 4.5. Coleccion: `partial_exam_simulations` (Simulacros de Parciales)
+- **Name**: `partial_exam_simulations`
+- **Type**: `Base`
+- **Fields**:
+    - `partialExam`: Relation (Single, Required) -> Collection: `partial_exams`
+    - `student`: Relation (Single, Required) -> Collection: `users`
+    - `score`: Number (Integer, Required)
+    - `totalQuestions`: Number (Integer, Required)
+    - `answeredQuestions`: Number (Integer, Required)
+    - `questionIds`: JSON (Required)
+    - `answers`: JSON
+    - `finishReason`: Select (options: "manual", "time")
+    - `completedAt`: Date (Required)
+- **API Rules**:
+    - **List/View Rule**: `@request.auth.role = "docente" || (@request.auth.role = "estudiante" && student = @request.auth.id)`
+    - **Create Rule**: `@request.auth.role = "estudiante" && student = @request.auth.id`
+    - **Update/Delete Rule**: Disabled
 
 ## 5. Colección: `deliveries` (Entregas de TP)
 - **Name**: `deliveries`

@@ -8,6 +8,7 @@ import {
   DeliveryFeedback,
   PartialExam,
   PartialExamQuestion,
+  PartialExamSimulation,
   PartialExamUnit,
   PartialExamUnitDocument,
 } from '@/types';
@@ -138,6 +139,19 @@ export async function getPartialExamsManagementData() {
   }
 }
 
+export async function getPublishedStudentPartialExams() {
+  const pb = await createServerClient();
+  try {
+    return await pb.collection('partial_exams').getFullList<PartialExam>({
+      filter: 'status = "Publicado" && title = "Simulacro Mundial FIFA 2026"',
+      expand: 'questionBanks',
+    });
+  } catch (error) {
+    console.error('Error fetching published student partial exams:', error);
+    return [];
+  }
+}
+
 export async function getPartialExam(id: string) {
   const pb = await createServerClient();
   const record = await pb.collection('partial_exams').getOne<PartialExam>(id, {
@@ -244,13 +258,50 @@ export async function getPartialExamSimulationQuestions(partialExam: PartialExam
   try {
     const questions = await pb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
       filter: `selected = true && (${unitFilter})`,
-      expand: 'unit,document',
     });
     return shuffleItems(questions).slice(0, limit);
   } catch (error) {
     console.error('Error fetching partial exam simulation questions:', error);
     return [];
   }
+}
+
+export async function getPartialExamSimulationReport(partialExamId: string) {
+  const [partialExam, students] = await Promise.all([
+    getPartialExam(partialExamId),
+    getStudents(),
+  ]);
+  const pb = await createServerClient();
+
+  const simulations = await pb.collection('partial_exam_simulations').getFullList<PartialExamSimulation>({
+    filter: `partialExam = "${partialExamId}"`,
+    sort: '-completedAt',
+    expand: 'student',
+  });
+
+  const latestSimulationByStudent = new Map<string, PartialExamSimulation>();
+  for (const simulation of simulations) {
+    if (!latestSimulationByStudent.has(simulation.student)) {
+      latestSimulationByStudent.set(simulation.student, simulation);
+    }
+  }
+
+  const completedStudents = students
+    .filter((student) => latestSimulationByStudent.has(student.id))
+    .map((student) => ({
+      student,
+      latestSimulation: latestSimulationByStudent.get(student.id),
+      attempts: simulations.filter((simulation) => simulation.student === student.id).length,
+    }));
+
+  const pendingStudents = students.filter((student) => !latestSimulationByStudent.has(student.id));
+
+  return {
+    partialExam,
+    simulations,
+    completedStudents,
+    pendingStudents,
+  };
 }
 
 export async function getLinks(parentId: string, parentType: 'class' | 'assignment' = 'class') {

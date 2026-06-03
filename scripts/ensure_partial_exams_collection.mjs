@@ -58,6 +58,21 @@ async function ensureCollectionFields(pb, name, updateFields) {
   return updated;
 }
 
+async function ensureCollectionRules(pb, name, rules) {
+  const collection = await collectionExists(pb, name);
+  if (!collection) return null;
+
+  const needsUpdate = Object.entries(rules).some(([key, value]) => collection[key] !== value);
+  if (!needsUpdate) {
+    console.log(`${name} rules already up to date`);
+    return collection;
+  }
+
+  const updated = await pb.collections.update(collection.id, rules);
+  console.log(`updated ${name} rules`);
+  return updated;
+}
+
 const dateField = (name) => ({
   type: 'date',
   name,
@@ -100,12 +115,20 @@ try {
 }
 
 const teacherOnly = '@request.auth.role = "docente"';
+const publishedStudentSimulation =
+  '@request.auth.role = "docente" || (@request.auth.role = "estudiante" && status = "Publicado" && title = "Simulacro Mundial FIFA 2026")';
+const teacherOrStudent = '@request.auth.role = "docente" || @request.auth.role = "estudiante"';
+const selectedQuestionsForStudents =
+  '@request.auth.role = "docente" || (@request.auth.role = "estudiante" && selected = true)';
+const teacherOrOwnStudentSimulation =
+  '@request.auth.role = "docente" || (@request.auth.role = "estudiante" && student = @request.auth.id)';
+const ownStudentSimulationCreate = '@request.auth.role = "estudiante" && student = @request.auth.id';
 
 await ensureCollection(pb, {
   name: 'partial_exams',
   type: 'base',
-  listRule: teacherOnly,
-  viewRule: teacherOnly,
+  listRule: publishedStudentSimulation,
+  viewRule: publishedStudentSimulation,
   createRule: teacherOnly,
   updateRule: teacherOnly,
   deleteRule: teacherOnly,
@@ -160,6 +183,108 @@ await ensureCollection(pb, {
   indexes: [],
 });
 
+await ensureCollectionRules(pb, 'partial_exams', {
+  listRule: publishedStudentSimulation,
+  viewRule: publishedStudentSimulation,
+});
+
+const partialExamsCollection = await collectionExists(pb, 'partial_exams');
+const usersCollection = await collectionExists(pb, 'users');
+
+if (!partialExamsCollection || !usersCollection) {
+  throw new Error('Missing required collections for partial exam simulations.');
+}
+
+await ensureCollection(pb, {
+  name: 'partial_exam_simulations',
+  type: 'base',
+  listRule: teacherOrOwnStudentSimulation,
+  viewRule: teacherOrOwnStudentSimulation,
+  createRule: ownStudentSimulationCreate,
+  updateRule: null,
+  deleteRule: null,
+  fields: [
+    {
+      ...relationField('partialExam', partialExamsCollection.id, 1),
+      required: true,
+      minSelect: 1,
+    },
+    {
+      ...relationField('student', usersCollection.id, 1),
+      required: true,
+      minSelect: 1,
+    },
+    {
+      type: 'number',
+      name: 'score',
+      required: true,
+      presentable: false,
+      hidden: false,
+      min: 0,
+      max: null,
+      onlyInt: true,
+    },
+    {
+      type: 'number',
+      name: 'totalQuestions',
+      required: true,
+      presentable: false,
+      hidden: false,
+      min: 0,
+      max: null,
+      onlyInt: true,
+    },
+    {
+      type: 'number',
+      name: 'answeredQuestions',
+      required: true,
+      presentable: false,
+      hidden: false,
+      min: 0,
+      max: null,
+      onlyInt: true,
+    },
+    {
+      type: 'json',
+      name: 'questionIds',
+      required: true,
+      presentable: false,
+      hidden: false,
+      maxSize: 0,
+    },
+    {
+      type: 'json',
+      name: 'answers',
+      required: true,
+      presentable: false,
+      hidden: false,
+      maxSize: 0,
+    },
+    {
+      type: 'select',
+      name: 'finishReason',
+      required: true,
+      presentable: false,
+      hidden: false,
+      maxSelect: 1,
+      values: ['manual', 'time'],
+    },
+    {
+      ...dateField('completedAt'),
+      required: true,
+    },
+  ],
+  indexes: [],
+});
+
+await ensureCollectionRules(pb, 'partial_exam_simulations', {
+  listRule: teacherOrOwnStudentSimulation,
+  viewRule: teacherOrOwnStudentSimulation,
+  createRule: ownStudentSimulationCreate,
+  updateRule: null,
+  deleteRule: null,
+});
+
 const partialExamsWithLegacyDate = await ensureCollectionFields(pb, 'partial_exams', (fields) => {
   const nextFields = [...fields];
   if (!nextFields.some((field) => field.name === 'startsAt')) {
@@ -188,8 +313,8 @@ if (partialExamsWithLegacyDate?.fields.some((field) => field.name === 'examDate'
 const unitsCollection = await ensureCollection(pb, {
   name: 'partial_exam_units',
   type: 'base',
-  listRule: teacherOnly,
-  viewRule: teacherOnly,
+  listRule: teacherOrStudent,
+  viewRule: teacherOrStudent,
   createRule: teacherOnly,
   updateRule: teacherOnly,
   deleteRule: teacherOnly,
@@ -228,6 +353,11 @@ const unitsCollection = await ensureCollection(pb, {
     },
   ],
   indexes: [],
+});
+
+await ensureCollectionRules(pb, 'partial_exam_units', {
+  listRule: teacherOrStudent,
+  viewRule: teacherOrStudent,
 });
 
 await ensureCollectionFields(pb, 'partial_exams', (fields) => {
@@ -305,8 +435,8 @@ const documentsCollection = await ensureCollection(pb, {
 await ensureCollection(pb, {
   name: 'partial_exam_questions',
   type: 'base',
-  listRule: teacherOnly,
-  viewRule: teacherOnly,
+  listRule: selectedQuestionsForStudents,
+  viewRule: selectedQuestionsForStudents,
   createRule: teacherOnly,
   updateRule: teacherOnly,
   deleteRule: teacherOnly,
@@ -403,6 +533,11 @@ await ensureCollection(pb, {
     },
   ],
   indexes: [],
+});
+
+await ensureCollectionRules(pb, 'partial_exam_questions', {
+  listRule: selectedQuestionsForStudents,
+  viewRule: selectedQuestionsForStudents,
 });
 
 const questionsCollection = await collectionExists(pb, 'partial_exam_questions');
