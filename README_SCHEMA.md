@@ -68,6 +68,62 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - `class`: Relation (Single, Optional) -> Collection: `classes`
     - `assignment`: Relation (Single, Optional) -> Collection: `assignments`
 
+## 4.1. Colección: `partial_exams` (Parciales)
+- **Name**: `partial_exams`
+- **Type**: `Base`
+- **Fields**:
+    - `title`: Text (Required)
+    - `description`: Editor (Rich Text)
+    - `startsAt`: Date
+    - `endsAt`: Date
+    - `questionBanks`: Relation (Multiple, Optional) -> Collection: `partial_exam_units`
+    - `topics`: Text
+    - `status`: Select (options: "Planificado", "Publicado", "Finalizado") (Default: "Planificado")
+- **API Rules**:
+    - **List/View Rule**: `@request.auth.role = "docente"`
+    - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
+
+## 4.2. Colección: `partial_exam_units` (Unidades para Banco de Preguntas)
+- **Name**: `partial_exam_units`
+- **Type**: `Base`
+- **Fields**:
+    - `name`: Text (Required)
+    - `description`: Text
+    - `order`: Number (Integer)
+- **API Rules**:
+    - **List/View Rule**: `@request.auth.role = "docente"`
+    - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
+
+## 4.3. Colección: `partial_exam_unit_documents` (Documentos de Unidad)
+- **Name**: `partial_exam_unit_documents`
+- **Type**: `Base`
+- **Fields**:
+    - `unit`: Relation (Single, Required) -> Collection: `partial_exam_units`
+    - `title`: Text (Required)
+    - `file`: File (Required, PDF o DOCX)
+    - `originalName`: Text
+- **API Rules**:
+    - **List/View Rule**: `@request.auth.role = "docente"`
+    - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
+
+## 4.4. Colección: `partial_exam_questions` (Banco de Preguntas)
+- **Name**: `partial_exam_questions`
+- **Type**: `Base`
+- **Fields**:
+    - `unit`: Relation (Single, Required) -> Collection: `partial_exam_units`
+    - `document`: Relation (Single, Optional) -> Collection: `partial_exam_unit_documents`
+    - `kind`: Select (options: "Conceptual", "Detectar error en codigo", "Explicar fragmento de codigo", "Elegir codigo para necesidad")
+    - `question`: Text (Required)
+    - `options`: JSON (Required)
+    - `correctOptionId`: Text (Required)
+    - `explanation`: Text
+    - `difficulty`: Select (options: "Basica", "Intermedia", "Avanzada")
+    - `selected`: Bool
+    - `sourceReference`: Text
+- **API Rules**:
+    - **List/View Rule**: `@request.auth.role = "docente"`
+    - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
+
 ## 5. Colección: `deliveries` (Entregas de TP)
 - **Name**: `deliveries`
 - **Type**: `Base`

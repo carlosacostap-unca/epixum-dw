@@ -3,10 +3,24 @@
 import { createServerClient } from "@/lib/pocketbase-server";
 import { revalidatePath } from "next/cache";
 import { getPresignedUploadUrl, getPresignedDownloadUrl, configureBucketCors } from "./s3";
-import { generateAIEvaluation } from "./ai";
-import { Assignment } from "@/types";
+import {
+  generateAIEvaluation,
+  generateMultipleChoiceQuestionsFromUnitDocument,
+  generateMultipleChoiceQuestionsFromUnitPrompt,
+} from "./ai";
+import { Assignment, PartialExamStatus } from "@/types";
 import PocketBase from "pocketbase";
 import { getDeliveryLimitDate } from "./delivery-deadlines";
+
+type PartialExamPayload = {
+  title: string;
+  description: string;
+  topics: string;
+  status: PartialExamStatus;
+  startsAt?: string;
+  endsAt?: string;
+  questionBanks?: string[];
+};
 
 export async function ensureCorsConfigured() {
   try {
@@ -407,6 +421,366 @@ export async function deleteAssignment(assignmentId: string) {
   } catch (error) {
     console.error('Failed to delete assignment:', error);
     return { success: false, error: 'Failed to delete assignment' };
+  }
+}
+
+// Partial Exams
+
+export async function createPartialExam(formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || user.role !== 'docente') {
+    throw new Error("Unauthorized");
+  }
+
+  const title = formData.get('title') as string;
+  const description = formData.get('description') as string;
+  const startsAt = formData.get('startsAt') as string;
+  const endsAt = formData.get('endsAt') as string;
+  const topics = formData.get('topics') as string;
+  const status = (formData.get('status') as PartialExamStatus) || 'Planificado';
+  const questionBanks = formData.getAll('questionBanks').map(String).filter(Boolean);
+
+  if (!title) {
+     return { success: false, error: 'El titulo es obligatorio' };
+  }
+
+  if (startsAt && endsAt && new Date(endsAt).getTime() < new Date(startsAt).getTime()) {
+    return { success: false, error: 'La fecha de finalizacion debe ser posterior al inicio' };
+  }
+
+  try {
+    const data: PartialExamPayload = {
+      title,
+      description,
+      topics,
+      status,
+    };
+    if (startsAt) data.startsAt = new Date(startsAt).toISOString();
+    if (endsAt) data.endsAt = new Date(endsAt).toISOString();
+    data.questionBanks = questionBanks;
+
+    await pb.collection('partial_exams').create(data);
+    revalidatePath('/');
+    revalidatePath('/parciales');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to create partial exam:', error);
+    return { success: false, error: 'No se pudo crear el parcial' };
+  }
+}
+
+export async function updatePartialExam(partialExamId: string, formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || user.role !== 'docente') {
+    throw new Error("Unauthorized");
+  }
+
+  const title = formData.get('title') as string;
+  const description = formData.get('description') as string;
+  const startsAt = formData.get('startsAt') as string;
+  const endsAt = formData.get('endsAt') as string;
+  const topics = formData.get('topics') as string;
+  const status = (formData.get('status') as PartialExamStatus) || 'Planificado';
+  const questionBanks = formData.getAll('questionBanks').map(String).filter(Boolean);
+
+  if (startsAt && endsAt && new Date(endsAt).getTime() < new Date(startsAt).getTime()) {
+    return { success: false, error: 'La fecha de finalizacion debe ser posterior al inicio' };
+  }
+
+  try {
+    const data: PartialExamPayload = {
+      title,
+      description,
+      topics,
+      status,
+    };
+    data.startsAt = startsAt ? new Date(startsAt).toISOString() : "";
+    data.endsAt = endsAt ? new Date(endsAt).toISOString() : "";
+    data.questionBanks = questionBanks;
+
+    await pb.collection('partial_exams').update(partialExamId, data);
+
+    revalidatePath('/');
+    revalidatePath('/parciales');
+    revalidatePath(`/parciales/${partialExamId}/editar`);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update partial exam:', error);
+    return { success: false, error: 'No se pudo actualizar el parcial' };
+  }
+}
+
+export async function deletePartialExam(partialExamId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || user.role !== 'docente') {
+    throw new Error("Unauthorized");
+  }
+
+  try {
+    await pb.collection('partial_exams').delete(partialExamId);
+    revalidatePath('/');
+    revalidatePath('/parciales');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete partial exam:', error);
+    return { success: false, error: 'No se pudo eliminar el parcial' };
+  }
+}
+
+// Partial Exam Question Bank
+
+function isDocente(user: unknown) {
+  return (
+    typeof user === 'object' &&
+    user !== null &&
+    'role' in user &&
+    (user as { role?: unknown }).role === 'docente'
+  );
+}
+
+export async function createPartialExamUnit(formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!isDocente(user)) {
+    throw new Error("Unauthorized");
+  }
+
+  const name = (formData.get('name') as string)?.trim();
+  const description = (formData.get('description') as string)?.trim();
+
+  if (!name) {
+    return { success: false, error: 'El nombre de la unidad es obligatorio.' };
+  }
+
+  try {
+    await pb.collection('partial_exam_units').create({
+      name,
+      description,
+    });
+    revalidatePath('/parciales');
+    revalidatePath('/parciales/banco');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to create partial exam unit:', error);
+    return { success: false, error: 'No se pudo crear la unidad.' };
+  }
+}
+
+export async function uploadPartialExamUnitDocument(formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!isDocente(user)) {
+    throw new Error("Unauthorized");
+  }
+
+  const unitId = (formData.get('unitId') as string)?.trim();
+  const title = (formData.get('title') as string)?.trim();
+  const file = formData.get('file') as File | null;
+
+  if (!unitId || !title || !file || file.size === 0) {
+    return { success: false, error: 'Unidad, titulo y archivo son obligatorios.' };
+  }
+
+  const filename = file.name.toLowerCase();
+  const isAcceptedFile = filename.endsWith('.pdf') || filename.endsWith('.docx');
+  if (!isAcceptedFile) {
+    return { success: false, error: 'Solo se permiten archivos PDF o DOCX.' };
+  }
+
+  try {
+    await pb.collection('partial_exam_unit_documents').create({
+      unit: unitId,
+      title,
+      originalName: file.name,
+      file,
+    });
+    revalidatePath('/parciales');
+    revalidatePath('/parciales/banco');
+    revalidatePath(`/parciales/banco/${unitId}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to upload partial exam unit document:', error);
+    return { success: false, error: 'No se pudo subir el documento.' };
+  }
+}
+
+export async function generateQuestionsForUnitDocument(formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!isDocente(user)) {
+    throw new Error("Unauthorized");
+  }
+
+  const documentId = (formData.get('documentId') as string)?.trim();
+  const questionCount = Number(formData.get('questionCount') || 10);
+
+  if (!documentId) {
+    return { success: false, error: 'Selecciona un documento.' };
+  }
+
+  try {
+    const document = await pb.collection('partial_exam_unit_documents').getOne(documentId, {
+      expand: 'unit',
+    });
+    const unit = document.expand?.unit;
+
+    if (!document.file || !unit) {
+      return { success: false, error: 'El documento no esta asociado correctamente a una unidad.' };
+    }
+
+    const fileUrl = pb.files.getURL(document, document.file);
+    const fileResponse = await fetch(fileUrl, {
+      headers: pb.authStore.token ? { Authorization: `Bearer ${pb.authStore.token}` } : undefined,
+    });
+
+    if (!fileResponse.ok) {
+      return { success: false, error: 'No se pudo leer el archivo de la unidad.' };
+    }
+
+    const arrayBuffer = await fileResponse.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const result = await generateMultipleChoiceQuestionsFromUnitDocument({
+      unitName: unit.name,
+      documentTitle: document.title,
+      filename: document.originalName || document.file,
+      mimeType: fileResponse.headers.get('content-type') || '',
+      buffer,
+      questionCount,
+    });
+
+    if (!result.success || !result.questions) {
+      return { success: false, error: result.error || 'No se pudieron generar preguntas.' };
+    }
+
+    for (const question of result.questions) {
+      await pb.collection('partial_exam_questions').create({
+        unit: unit.id,
+        document: document.id,
+        kind: question.kind,
+        question: question.question,
+        options: question.options,
+        correctOptionId: question.correctOptionId,
+        explanation: question.explanation,
+        difficulty: question.difficulty,
+        sourceReference: question.sourceReference,
+        selected: true,
+      });
+    }
+
+    revalidatePath('/parciales');
+    revalidatePath('/parciales/banco');
+    revalidatePath(`/parciales/banco/${unit.id}`);
+    return { success: true, created: result.questions.length };
+  } catch (error) {
+    console.error('Failed to generate partial exam questions:', error);
+    return { success: false, error: 'No se pudieron generar preguntas.' };
+  }
+}
+
+export async function generateQuestionsForUnitPrompt(formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!isDocente(user)) {
+    throw new Error("Unauthorized");
+  }
+
+  const unitId = (formData.get('unitId') as string)?.trim();
+  const prompt = (formData.get('prompt') as string)?.trim();
+  const questionCount = Number(formData.get('questionCount') || 10);
+
+  if (!unitId || !prompt) {
+    return { success: false, error: 'Unidad y prompt son obligatorios.' };
+  }
+
+  try {
+    const unit = await pb.collection('partial_exam_units').getOne(unitId);
+    const result = await generateMultipleChoiceQuestionsFromUnitPrompt({
+      unitName: unit.name,
+      prompt,
+      questionCount,
+    });
+
+    if (!result.success || !result.questions) {
+      return { success: false, error: result.error || 'No se pudieron generar preguntas.' };
+    }
+
+    for (const question of result.questions) {
+      await pb.collection('partial_exam_questions').create({
+        unit: unit.id,
+        kind: question.kind,
+        question: question.question,
+        options: question.options,
+        correctOptionId: question.correctOptionId,
+        explanation: question.explanation,
+        difficulty: question.difficulty,
+        sourceReference: question.sourceReference || 'Prompt del docente',
+        selected: true,
+      });
+    }
+
+    revalidatePath('/parciales');
+    revalidatePath('/parciales/banco');
+    revalidatePath(`/parciales/banco/${unit.id}`);
+    return { success: true, created: result.questions.length };
+  } catch (error) {
+    console.error('Failed to generate partial exam questions from prompt:', error);
+    return { success: false, error: 'No se pudieron generar preguntas.' };
+  }
+}
+
+export async function updatePartialExamQuestionSelection(questionId: string, selected: boolean) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!isDocente(user)) {
+    throw new Error("Unauthorized");
+  }
+
+  try {
+    const question = await pb.collection('partial_exam_questions').getOne(questionId);
+    await pb.collection('partial_exam_questions').update(questionId, { selected });
+    revalidatePath('/parciales');
+    revalidatePath('/parciales/banco');
+    if (question.unit) {
+      revalidatePath(`/parciales/banco/${question.unit}`);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update partial exam question selection:', error);
+    return { success: false, error: 'No se pudo actualizar la pregunta.' };
+  }
+}
+
+export async function deletePartialExamQuestion(questionId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!isDocente(user)) {
+    throw new Error("Unauthorized");
+  }
+
+  try {
+    const question = await pb.collection('partial_exam_questions').getOne(questionId);
+    await pb.collection('partial_exam_questions').delete(questionId);
+    revalidatePath('/parciales');
+    revalidatePath('/parciales/banco');
+    if (question.unit) {
+      revalidatePath(`/parciales/banco/${question.unit}`);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete partial exam question:', error);
+    return { success: false, error: 'No se pudo eliminar la pregunta.' };
   }
 }
 

@@ -1,5 +1,16 @@
 import { createServerClient } from './pocketbase-server';
-import { Class, Link, Assignment, User, Delivery, DeliveryFeedback } from '@/types';
+import {
+  Class,
+  Link,
+  Assignment,
+  User,
+  Delivery,
+  DeliveryFeedback,
+  PartialExam,
+  PartialExamQuestion,
+  PartialExamUnit,
+  PartialExamUnitDocument,
+} from '@/types';
 import { unstable_cache } from 'next/cache';
 import { cache } from 'react';
 import PocketBase from 'pocketbase';
@@ -94,6 +105,152 @@ export async function getAssignment(id: string) {
   const pb = await createServerClient();
   const record = await pb.collection('assignments').getOne<Assignment>(id);
   return record;
+}
+
+export async function getAllPartialExams() {
+  const pb = await createServerClient();
+  const records = await pb.collection('partial_exams').getFullList<PartialExam>({
+    expand: 'questionBanks',
+  });
+  return records;
+}
+
+export async function getPartialExamsManagementData() {
+  try {
+    return {
+      partialExams: await getAllPartialExams(),
+      collectionReady: true,
+    };
+  } catch (error) {
+    const responseError = error as { status?: number; message?: string };
+    const isMissingCollection =
+      responseError.status === 404 &&
+      responseError.message?.toLowerCase().includes('collection');
+
+    if (!isMissingCollection) {
+      throw error;
+    }
+
+    return {
+      partialExams: [] as PartialExam[],
+      collectionReady: false,
+    };
+  }
+}
+
+export async function getPartialExam(id: string) {
+  const pb = await createServerClient();
+  const record = await pb.collection('partial_exams').getOne<PartialExam>(id, {
+    expand: 'questionBanks',
+  });
+  return record;
+}
+
+export async function getPartialExamUnits() {
+  const pb = await createServerClient();
+  try {
+    const units = await pb.collection('partial_exam_units').getFullList<PartialExamUnit>();
+    return units.sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }));
+  } catch (error) {
+    console.error('Error fetching partial exam units:', error);
+    return [];
+  }
+}
+
+export async function getPartialExamUnit(id: string) {
+  const pb = await createServerClient();
+  try {
+    return await pb.collection('partial_exam_units').getOne<PartialExamUnit>(id);
+  } catch (error) {
+    console.error('Error fetching partial exam unit:', error);
+    return null;
+  }
+}
+
+export async function getPartialExamUnitDocuments() {
+  const pb = await createServerClient();
+  try {
+    return await pb.collection('partial_exam_unit_documents').getFullList<PartialExamUnitDocument>({
+      expand: 'unit',
+    });
+  } catch (error) {
+    console.error('Error fetching partial exam unit documents:', error);
+    return [];
+  }
+}
+
+export async function getPartialExamUnitDocumentsByUnit(unitId: string) {
+  const pb = await createServerClient();
+  try {
+    return await pb.collection('partial_exam_unit_documents').getFullList<PartialExamUnitDocument>({
+      filter: `unit = "${unitId}"`,
+      expand: 'unit',
+    });
+  } catch (error) {
+    console.error('Error fetching partial exam unit documents by unit:', error);
+    return [];
+  }
+}
+
+export async function getPartialExamQuestions() {
+  const pb = await createServerClient();
+  try {
+    return await pb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
+      expand: 'unit,document',
+    });
+  } catch (error) {
+    console.error('Error fetching partial exam questions:', error);
+    return [];
+  }
+}
+
+export async function getPartialExamQuestionsByUnit(unitId: string) {
+  const pb = await createServerClient();
+  try {
+    return await pb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
+      filter: `unit = "${unitId}"`,
+      expand: 'unit,document',
+    });
+  } catch (error) {
+    console.error('Error fetching partial exam questions by unit:', error);
+    return [];
+  }
+}
+
+function shuffleItems<T>(items: T[]) {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+export async function getPartialExamSimulationQuestions(partialExam: PartialExam, limit = 10) {
+  const pb = await createServerClient();
+  const rawBankIds = partialExam.questionBanks;
+  const bankIds = Array.isArray(rawBankIds)
+    ? rawBankIds
+    : rawBankIds
+      ? [rawBankIds]
+      : [];
+
+  if (bankIds.length === 0) {
+    return [];
+  }
+
+  const unitFilter = bankIds.map((unitId) => `unit = "${unitId}"`).join(' || ');
+
+  try {
+    const questions = await pb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
+      filter: `selected = true && (${unitFilter})`,
+      expand: 'unit,document',
+    });
+    return shuffleItems(questions).slice(0, limit);
+  } catch (error) {
+    console.error('Error fetching partial exam simulation questions:', error);
+    return [];
+  }
 }
 
 export async function getLinks(parentId: string, parentType: 'class' | 'assignment' = 'class') {

@@ -63,6 +63,66 @@ export interface Assignment extends BaseModel {
   };
 }
 
+export type PartialExamStatus = 'Planificado' | 'Publicado' | 'Finalizado';
+
+export interface PartialExam extends BaseModel {
+  title: string;
+  description: string;
+  startsAt?: string;
+  endsAt?: string;
+  questionBanks?: string[] | string;
+  topics?: string;
+  status?: PartialExamStatus;
+  expand?: {
+    questionBanks?: PartialExamUnit[];
+  };
+}
+
+export interface PartialExamUnit extends BaseModel {
+  name: string;
+  description?: string;
+  order?: number;
+}
+
+export interface PartialExamUnitDocument extends BaseModel {
+  unit: string;
+  title: string;
+  file: string;
+  originalName?: string;
+  expand?: {
+    unit?: PartialExamUnit;
+  };
+}
+
+export type QuestionDifficulty = 'Basica' | 'Intermedia' | 'Avanzada';
+export type PartialExamQuestionKind =
+  | 'Conceptual'
+  | 'Detectar error en codigo'
+  | 'Explicar fragmento de codigo'
+  | 'Elegir codigo para necesidad';
+
+export interface MultipleChoiceOption {
+  id: string;
+  text: string;
+}
+
+export interface PartialExamQuestion extends BaseModel {
+  unit: string;
+  document?: string;
+  kind?: PartialExamQuestionKind;
+  question: string;
+  options: MultipleChoiceOption[];
+  correctOptionId: string;
+  explanation?: string;
+  difficulty?: QuestionDifficulty;
+  selected?: boolean;
+  sourceReference?: string;
+  expand?: {
+    unit?: PartialExamUnit;
+    document?: PartialExamUnitDocument;
+  };
+}
+
 export interface Delivery extends BaseModel {
   assignment: string;
   student: string;

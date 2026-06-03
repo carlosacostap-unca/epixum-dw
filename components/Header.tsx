@@ -90,6 +90,14 @@ export default function Header() {
               Administrar Usuarios
             </Link>
           )}
+          {user?.role === 'docente' && (
+            <Link
+              href="/parciales"
+              className="text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+            >
+              Parciales
+            </Link>
+          )}
           {user && (
              <Link href="/profile" className="flex items-center gap-2 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
                {user.avatar && (
