@@ -49,6 +49,12 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recordedAttemptRef = useRef(false);
+  const [simulatedQuestions] = useState<SimulatedQuestion[]>(() => {
+    return questions.map((question) => ({
+      ...question,
+      shuffledOptions: shuffleItems(question.options || []),
+    }));
+  });
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isRequestingCamera, setIsRequestingCamera] = useState(false);
@@ -59,18 +65,19 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
   const [remainingTimeMs, setRemainingTimeMs] = useState<number | null>(() => getRemainingTimeMs(partialExam.endsAt));
   const [recordStatus, setRecordStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
-  const simulatedQuestions = useMemo<SimulatedQuestion[]>(() => {
-    return questions.map((question) => ({
-      ...question,
-      shuffledOptions: shuffleItems(question.options || []),
-    }));
-  }, [questions]);
+  const answersForSimulatedQuestions = useMemo(() => {
+    return simulatedQuestions.reduce<Record<string, string>>((currentAnswers, question) => {
+      const answer = answers[question.id];
+      if (answer) currentAnswers[question.id] = answer;
+      return currentAnswers;
+    }, {});
+  }, [answers, simulatedQuestions]);
 
   const currentQuestion = simulatedQuestions[currentIndex];
   const selectedAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
-  const answeredCount = Object.keys(answers).length;
-  const correctCount = simulatedQuestions.filter((question) => answers[question.id] === question.correctOptionId).length;
-  const allQuestionsAnswered = answeredCount === simulatedQuestions.length;
+  const answeredCount = Object.keys(answersForSimulatedQuestions).length;
+  const correctCount = simulatedQuestions.filter((question) => answersForSimulatedQuestions[question.id] === question.correctOptionId).length;
+  const allQuestionsAnswered = simulatedQuestions.every((question) => Boolean(answersForSimulatedQuestions[question.id]));
   const timeExpired = remainingTimeMs !== null && remainingTimeMs <= 0;
 
   useEffect(() => {
@@ -111,12 +118,12 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
     recordPartialExamSimulation({
       partialExamId: partialExam.id,
       questionIds: simulatedQuestions.map((question) => question.id),
-      answers,
+      answers: answersForSimulatedQuestions,
       finishReason,
     }).then((result) => {
       setRecordStatus(result.success ? "saved" : "error");
     });
-  }, [answers, finishReason, isFinished, partialExam.id, recordAttempt, simulatedQuestions]);
+  }, [answersForSimulatedQuestions, finishReason, isFinished, partialExam.id, recordAttempt, simulatedQuestions]);
 
   async function requestCamera() {
     setCameraError(null);
@@ -213,7 +220,7 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
           )}
           <div className="mt-6 space-y-3">
             {simulatedQuestions.map((question, index) => {
-              const userAnswer = answers[question.id];
+              const userAnswer = answersForSimulatedQuestions[question.id];
               const isCorrect = userAnswer === question.correctOptionId;
 
               return (
