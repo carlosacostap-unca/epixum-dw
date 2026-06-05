@@ -132,8 +132,7 @@ const teacherOnly = '@request.auth.role = "docente"';
 const publishedStudentSimulation =
   '@request.auth.role = "docente" || (@request.auth.role = "estudiante" && status = "Publicado")';
 const teacherOrStudent = '@request.auth.role = "docente" || @request.auth.role = "estudiante"';
-const selectedQuestionsForStudents =
-  '@request.auth.role = "docente" || (@request.auth.role = "estudiante" && selected = true)';
+const questionsForStudents = '@request.auth.role = "docente" || @request.auth.role = "estudiante"';
 const teacherOrOwnStudentSimulation =
   '@request.auth.role = "docente" || (@request.auth.role = "estudiante" && student = @request.auth.id)';
 const ownStudentSimulationCreate = '@request.auth.role = "estudiante" && student = @request.auth.id';
@@ -553,8 +552,8 @@ const documentsCollection = await ensureCollection(pb, {
 await ensureCollection(pb, {
   name: 'partial_exam_questions',
   type: 'base',
-  listRule: selectedQuestionsForStudents,
-  viewRule: selectedQuestionsForStudents,
+  listRule: questionsForStudents,
+  viewRule: questionsForStudents,
   createRule: teacherOnly,
   updateRule: teacherOnly,
   deleteRule: teacherOnly,
@@ -654,8 +653,8 @@ await ensureCollection(pb, {
 });
 
 await ensureCollectionRules(pb, 'partial_exam_questions', {
-  listRule: selectedQuestionsForStudents,
-  viewRule: selectedQuestionsForStudents,
+  listRule: questionsForStudents,
+  viewRule: questionsForStudents,
 });
 
 const questionsCollection = await collectionExists(pb, 'partial_exam_questions');

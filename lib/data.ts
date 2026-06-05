@@ -20,6 +20,21 @@ import { cache } from 'react';
 import PocketBase from 'pocketbase';
 import { cookies } from 'next/headers';
 
+async function createQuestionBankReadClient() {
+  const url = process.env['NEXT_PUBLIC_POCKETBASE_URL'];
+  const email = process.env['POCKETBASE_ADMIN'];
+  const password = process.env['POCKETBASE_PASSWORD'];
+
+  if (!url || !email || !password) {
+    return createServerClient();
+  }
+
+  const adminPb = new PocketBase(url);
+  adminPb.autoCancellation(false);
+  await adminPb.collection('_superusers').authWithPassword(email, password);
+  return adminPb;
+}
+
 // Helper to create client with token for cached functions
 const createClientWithToken = (token: string | undefined) => {
     const url = process.env['NEXT_PUBLIC_POCKETBASE_URL'];
@@ -245,7 +260,7 @@ function shuffleItems<T>(items: T[]) {
 }
 
 export async function getPartialExamSimulationQuestions(partialExam: PartialExam, limit = PARTIAL_EXAM_QUESTION_COUNT, fixedQuestionIds?: string[]) {
-  const pb = await createServerClient();
+  const pb = await createQuestionBankReadClient();
   const bankIds = normalizeRelationIds(partialExam.questionBanks);
 
   if (bankIds.length === 0) {
@@ -259,14 +274,14 @@ export async function getPartialExamSimulationQuestions(partialExam: PartialExam
     if (questionIds.length > 0) {
       const questionFilter = questionIds.map((questionId) => pb.filter('id = {:questionId}', { questionId })).join(' || ');
       const questions = await pb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
-        filter: `selected = true && (${questionFilter}) && (${unitFilter})`,
+        filter: `(${questionFilter}) && (${unitFilter})`,
       });
       const questionsById = new Map(questions.map((question) => [question.id, question]));
       return questionIds.map((questionId) => questionsById.get(questionId)).filter(Boolean) as PartialExamQuestion[];
     }
 
     const questions = await pb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
-      filter: `selected = true && (${unitFilter})`,
+      filter: `(${unitFilter})`,
     });
     if (questions.length < limit) {
       return [];

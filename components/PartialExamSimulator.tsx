@@ -213,14 +213,16 @@ export default function PartialExamSimulator({
       <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center dark:border-zinc-700 dark:bg-zinc-900">
         <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">El parcial necesita {PARTIAL_EXAM_QUESTION_COUNT} preguntas</h2>
         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-          Asocia uno o mas bancos de preguntas y marca al menos {PARTIAL_EXAM_QUESTION_COUNT} preguntas seleccionadas para poder habilitarlo.
+          Asocia uno o mas bancos de preguntas con al menos {PARTIAL_EXAM_QUESTION_COUNT} preguntas cargadas para poder habilitarlo.
         </p>
-        <Link
-          href={`/parciales/${partialExam.id}/editar`}
-          className="mt-5 inline-flex rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-        >
-          Editar parcial
-        </Link>
+        {!recordAttempt && (
+          <Link
+            href={`/parciales/${partialExam.id}/editar`}
+            className="mt-5 inline-flex rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          >
+            Editar parcial
+          </Link>
+        )}
       </div>
     );
   }
@@ -334,7 +336,7 @@ export default function PartialExamSimulator({
       <div className="mx-auto max-w-2xl rounded-lg border border-zinc-200 bg-white p-6 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Antes de iniciar</h2>
         <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-          Para realizar el parcial, primero activa la camara. La vista previa se mantendra visible durante el parcial.
+          Para realizar el parcial, primero activa la camara. No podras iniciar sin habilitarla, y la vista previa se mantendra visible durante todo el parcial.
         </p>
         {partialExam.endsAt && (
           <p className="mt-3 rounded-md bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">

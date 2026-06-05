@@ -69,12 +69,12 @@ async function createAdministrativeClient(authenticatedPb: PocketBase) {
   }
 }
 
-async function countSelectedQuestionsForBanks(pb: PocketBase, bankIds: string[]) {
+async function countQuestionsForBanks(pb: PocketBase, bankIds: string[]) {
   if (bankIds.length === 0) return 0;
 
   const unitFilter = bankIds.map((unitId) => pb.filter('unit = {:unitId}', { unitId })).join(' || ');
   const questions = await pb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
-    filter: `selected = true && (${unitFilter})`,
+    filter: `(${unitFilter})`,
     fields: 'id',
   });
 
@@ -86,9 +86,9 @@ async function validatePartialExamBanks(pb: PocketBase, bankIds: string[]) {
     return 'Selecciona al menos un banco de preguntas para el parcial.';
   }
 
-  const selectedQuestions = await countSelectedQuestionsForBanks(pb, bankIds);
-  if (selectedQuestions < PARTIAL_EXAM_QUESTION_COUNT) {
-    return `Los bancos seleccionados deben tener al menos ${PARTIAL_EXAM_QUESTION_COUNT} preguntas seleccionadas. Actualmente tienen ${selectedQuestions}.`;
+  const questionCount = await countQuestionsForBanks(pb, bankIds);
+  if (questionCount < PARTIAL_EXAM_QUESTION_COUNT) {
+    return `Los bancos seleccionados deben tener al menos ${PARTIAL_EXAM_QUESTION_COUNT} preguntas cargadas. Actualmente tienen ${questionCount}.`;
   }
 
   return null;
@@ -703,8 +703,9 @@ export async function recordPartialExamSimulation(params: {
 
     const questionFilter = questionIds.map((questionId) => `id = "${questionId}"`).join(' || ');
     const unitFilter = bankIds.map((unitId) => `unit = "${unitId}"`).join(' || ');
-    const questions = await pb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
-      filter: `selected = true && (${questionFilter}) && (${unitFilter})`,
+    const questionPb = await createAdministrativeClient(pb);
+    const questions = await questionPb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
+      filter: `(${questionFilter}) && (${unitFilter})`,
     });
     if (questions.length !== PARTIAL_EXAM_QUESTION_COUNT) {
       return { success: false, error: `No se pudieron validar las ${PARTIAL_EXAM_QUESTION_COUNT} preguntas del parcial.` };

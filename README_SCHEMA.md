@@ -84,7 +84,7 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
 - **Regla de negocio**:
     - Cada parcial debe tener uno o mas bancos asociados.
-    - Los bancos asociados deben aportar al menos 10 preguntas seleccionadas.
+    - Los bancos asociados deben aportar al menos 10 preguntas cargadas.
     - Cada intento de estudiante congela 10 preguntas al azar y se evalua solamente sobre esas 10 preguntas, 1 punto por pregunta.
 
 ## 4.2. Colección: `partial_exam_units` (Unidades para Banco de Preguntas)
@@ -125,7 +125,7 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - `selected`: Bool
     - `sourceReference`: Text
 - **API Rules**:
-    - **List/View Rule**: `@request.auth.role = "docente" || (@request.auth.role = "estudiante" && selected = true)`
+    - **List/View Rule**: `@request.auth.role = "docente" || @request.auth.role = "estudiante"`
     - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
 
 ## 4.5. Coleccion: `partial_exam_simulations` (Resultados de Parciales)
