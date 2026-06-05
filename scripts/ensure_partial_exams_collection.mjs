@@ -305,12 +305,18 @@ await ensureCollectionRules(pb, 'partial_exam_simulations', {
 });
 
 await ensureCollectionFields(pb, 'partial_exam_simulations', (fields) => {
-  if (fields.some((field) => field.name === 'scoreVisible')) {
-    return fields;
+  const nextFields = fields.map((field) =>
+    field.name === 'answers'
+      ? { ...field, required: false }
+      : field
+  );
+
+  if (nextFields.some((field) => field.name === 'scoreVisible')) {
+    return nextFields;
   }
 
   return [
-    ...fields,
+    ...nextFields,
     boolField('scoreVisible'),
   ];
 });
@@ -393,6 +399,14 @@ await ensureCollectionRules(pb, 'partial_exam_attempts', {
   updateRule: ownStudentAttemptUpdate,
   deleteRule: null,
 });
+
+await ensureCollectionFields(pb, 'partial_exam_attempts', (fields) =>
+  fields.map((field) =>
+    field.name === 'answers'
+      ? { ...field, required: false }
+      : field
+  )
+);
 
 const partialExamsWithLegacyDate = await ensureCollectionFields(pb, 'partial_exams', (fields) => {
   const nextFields = [...fields];
