@@ -2,9 +2,7 @@
 
 import { recordPartialExamSimulation, savePartialExamAttemptProgress } from "@/lib/actions";
 import PartialExamText from "@/components/PartialExamText";
-import { PARTIAL_EXAM_QUESTION_COUNT } from "@/lib/partial-exam-rules";
 import { MultipleChoiceOption, PartialExam, PartialExamQuestion } from "@/types";
-import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 
@@ -208,21 +206,13 @@ export default function PartialExamSimulator({
     });
   }
 
-  if (simulatedQuestions.length !== PARTIAL_EXAM_QUESTION_COUNT) {
+  if (simulatedQuestions.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center dark:border-zinc-700 dark:bg-zinc-900">
-        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">El parcial necesita {PARTIAL_EXAM_QUESTION_COUNT} preguntas</h2>
+        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">No se pudieron cargar las preguntas</h2>
         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-          Asocia uno o mas bancos de preguntas con al menos {PARTIAL_EXAM_QUESTION_COUNT} preguntas cargadas para poder habilitarlo.
+          Volve a intentar en unos instantes. Si el problema continua, avisa al docente.
         </p>
-        {!recordAttempt && (
-          <Link
-            href={`/parciales/${partialExam.id}/editar`}
-            className="mt-5 inline-flex rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            Editar parcial
-          </Link>
-        )}
       </div>
     );
   }
