@@ -1,6 +1,8 @@
 "use client";
 
-import { recordPartialExamSimulation } from "@/lib/actions";
+import { recordPartialExamSimulation, savePartialExamAttemptProgress } from "@/lib/actions";
+import PartialExamText from "@/components/PartialExamText";
+import { PARTIAL_EXAM_QUESTION_COUNT } from "@/lib/partial-exam-rules";
 import { MultipleChoiceOption, PartialExam, PartialExamQuestion } from "@/types";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -15,6 +17,8 @@ type FinishReason = "manual" | "time";
 interface PartialExamSimulatorProps {
   partialExam: PartialExam;
   questions: PartialExamQuestion[];
+  attemptId?: string;
+  initialAnswers?: Record<string, string>;
   recordAttempt?: boolean;
 }
 
@@ -45,10 +49,17 @@ function formatRemainingTime(milliseconds: number | null) {
     .join(":");
 }
 
-export default function PartialExamSimulator({ partialExam, questions, recordAttempt = false }: PartialExamSimulatorProps) {
+export default function PartialExamSimulator({
+  partialExam,
+  questions,
+  attemptId,
+  initialAnswers = {},
+  recordAttempt = false,
+}: PartialExamSimulatorProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const recordedAttemptRef = useRef(false);
+  const saveSequenceRef = useRef(0);
   const [simulatedQuestions] = useState<SimulatedQuestion[]>(() => {
     return questions.map((question) => ({
       ...question,
@@ -59,11 +70,14 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isRequestingCamera, setIsRequestingCamera] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, string>>(initialAnswers);
   const [isFinished, setIsFinished] = useState(false);
   const [finishReason, setFinishReason] = useState<FinishReason>("manual");
   const [remainingTimeMs, setRemainingTimeMs] = useState<number | null>(() => getRemainingTimeMs(partialExam.endsAt));
   const [recordStatus, setRecordStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
+    Object.keys(initialAnswers).length > 0 ? "saved" : "idle",
+  );
 
   const answersForSimulatedQuestions = useMemo(() => {
     return simulatedQuestions.reduce<Record<string, string>>((currentAnswers, question) => {
@@ -120,10 +134,11 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
       questionIds: simulatedQuestions.map((question) => question.id),
       answers: answersForSimulatedQuestions,
       finishReason,
+      attemptId,
     }).then((result) => {
       setRecordStatus(result.success ? "saved" : "error");
     });
-  }, [answersForSimulatedQuestions, finishReason, isFinished, partialExam.id, recordAttempt, simulatedQuestions]);
+  }, [answersForSimulatedQuestions, attemptId, finishReason, isFinished, partialExam.id, recordAttempt, simulatedQuestions]);
 
   async function requestCamera() {
     setCameraError(null);
@@ -142,14 +157,14 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
       const videoTracks = stream.getVideoTracks();
       if (videoTracks.length === 0 || !videoTracks.some((track) => track.readyState === "live")) {
         stream.getTracks().forEach((track) => track.stop());
-        setCameraError("No se detecto una camara activa. Activa la camara para iniciar el simulacro.");
+        setCameraError("No se detecto una camara activa. Activa la camara para iniciar el parcial.");
         return;
       }
 
       videoTracks.forEach((track) => {
         track.onended = () => {
           setCameraReady(false);
-          setCameraError("La camara se detuvo. Debes activarla nuevamente para continuar el simulacro.");
+          setCameraError("La camara se detuvo. Debes activarla nuevamente para continuar el parcial.");
         };
       });
       streamRef.current = stream;
@@ -163,10 +178,12 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
 
   function selectAnswer(optionId: string) {
     if (!currentQuestion || isFinished || !cameraReady || timeExpired) return;
-    setAnswers((current) => ({
-      ...current,
+    const nextAnswers = {
+      ...answersForSimulatedQuestions,
       [currentQuestion.id]: optionId,
-    }));
+    };
+    setAnswers(nextAnswers);
+    persistAnswers(nextAnswers);
   }
 
   function finishSimulation(reason: FinishReason) {
@@ -174,12 +191,29 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
     setIsFinished(true);
   }
 
-  if (simulatedQuestions.length === 0) {
+  function persistAnswers(nextAnswers: Record<string, string>) {
+    if (!recordAttempt || !attemptId) return;
+
+    const saveSequence = saveSequenceRef.current + 1;
+    saveSequenceRef.current = saveSequence;
+    setSaveStatus("saving");
+
+    savePartialExamAttemptProgress({
+      attemptId,
+      partialExamId: partialExam.id,
+      answers: nextAnswers,
+    }).then((result) => {
+      if (saveSequenceRef.current !== saveSequence) return;
+      setSaveStatus(result.success ? "saved" : "error");
+    });
+  }
+
+  if (simulatedQuestions.length !== PARTIAL_EXAM_QUESTION_COUNT) {
     return (
       <div className="rounded-lg border border-dashed border-zinc-300 bg-white p-8 text-center dark:border-zinc-700 dark:bg-zinc-900">
-        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">No hay preguntas para simular</h2>
+        <h2 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">El parcial necesita {PARTIAL_EXAM_QUESTION_COUNT} preguntas</h2>
         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-          Asocia bancos de preguntas al parcial y marca preguntas seleccionadas para poder lanzar una simulacion.
+          Asocia uno o mas bancos de preguntas y marca al menos {PARTIAL_EXAM_QUESTION_COUNT} preguntas seleccionadas para poder habilitarlo.
         </p>
         <Link
           href={`/parciales/${partialExam.id}/editar`}
@@ -192,13 +226,35 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
   }
 
   if (isFinished) {
+    if (recordAttempt) {
+      return (
+        <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+          <section className="min-w-0 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
+            <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Parcial enviado</h2>
+            {finishReason === "time" && (
+              <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+                El tiempo disponible para realizar el parcial finalizo y se envio con tus respuestas guardadas.
+              </div>
+            )}
+            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
+              {recordStatus === "saving" && "Enviando parcial..."}
+              {recordStatus === "saved" && "El parcial fue enviado correctamente."}
+              {recordStatus === "error" && "No se pudo enviar el parcial. Avisa al docente."}
+              {recordStatus === "idle" && "Preparando envio del parcial..."}
+            </div>
+          </section>
+          <CameraPreview videoRef={videoRef} />
+        </div>
+      );
+    }
+
     return (
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-        <section className="rounded-lg border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Simulacion finalizada</h2>
+      <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <section className="min-w-0 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
+          <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Vista finalizada</h2>
           {finishReason === "time" && (
             <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-              El tiempo disponible para realizar el simulacro finalizo.
+              El tiempo disponible para realizar el parcial finalizo.
             </div>
           )}
           <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/40">
@@ -210,12 +266,17 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
               Cada pregunta correcta vale 1 punto. Respondiste {answeredCount} de {simulatedQuestions.length} preguntas.
             </p>
           </div>
+          {recordAttempt && saveStatus === "error" && (
+            <div className="mt-4 rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
+              Algunas respuestas no se pudieron guardar automaticamente.
+            </div>
+          )}
           {recordAttempt && (
             <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300">
-              {recordStatus === "saving" && "Registrando simulacro..."}
-              {recordStatus === "saved" && "Simulacro registrado correctamente."}
-              {recordStatus === "error" && "No se pudo registrar el simulacro. Avisa al docente."}
-              {recordStatus === "idle" && "Preparando registro del simulacro..."}
+              {recordStatus === "saving" && "Enviando parcial..."}
+              {recordStatus === "saved" && "Parcial enviado correctamente."}
+              {recordStatus === "error" && "No se pudo enviar el parcial. Avisa al docente."}
+              {recordStatus === "idle" && "Preparando envio del parcial..."}
             </div>
           )}
           <div className="mt-6 space-y-3">
@@ -233,9 +294,12 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
                   }`}
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <p className="font-medium text-zinc-900 dark:text-zinc-100">
-                      {index + 1}. {question.question}
-                    </p>
+                    <div className="min-w-0 font-medium text-zinc-900 dark:text-zinc-100">
+                      <span>{index + 1}.</span>
+                      <div className="mt-1">
+                        <PartialExamText text={question.question} variant="detail" />
+                      </div>
+                    </div>
                     <span
                       className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${
                         isCorrect
@@ -251,7 +315,9 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
                     {userAnswer?.toUpperCase() || "Sin responder"}
                   </p>
                   {question.explanation && (
-                    <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{question.explanation}</p>
+                    <div className="mt-2">
+                      <PartialExamText text={question.explanation} variant="detail" />
+                    </div>
                   )}
                 </div>
               );
@@ -268,7 +334,7 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
       <div className="mx-auto max-w-2xl rounded-lg border border-zinc-200 bg-white p-6 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Antes de iniciar</h2>
         <p className="mt-3 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-          Para simular el parcial, primero activa la camara. La vista previa se mantendra visible durante la simulacion.
+          Para realizar el parcial, primero activa la camara. La vista previa se mantendra visible durante el parcial.
         </p>
         {partialExam.endsAt && (
           <p className="mt-3 rounded-md bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
@@ -293,10 +359,10 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
-      <section className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
+    <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_260px] lg:gap-4">
+      <section className="min-w-0 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+          <div className="min-w-0">
             <p className="text-sm font-medium text-blue-600 dark:text-blue-300">
               Pregunta {currentIndex + 1} de {simulatedQuestions.length}
             </p>
@@ -307,10 +373,18 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
               />
             </div>
           </div>
-          <span className="rounded-full bg-zinc-100 px-3 py-1 text-sm text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+          <span className="self-start rounded-full bg-zinc-100 px-3 py-1 text-sm text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
             {answeredCount}/{simulatedQuestions.length} respondidas
           </span>
         </div>
+        {recordAttempt && (
+          <div className="mb-5 text-sm text-zinc-500 dark:text-zinc-400">
+            {saveStatus === "saving" && "Guardando respuestas..."}
+            {saveStatus === "saved" && "Respuestas guardadas"}
+            {saveStatus === "error" && "No se pudieron guardar las respuestas"}
+            {saveStatus === "idle" && "Las respuestas se guardaran automaticamente"}
+          </div>
+        )}
 
         <div className="mb-5 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950">
           <p className="text-xs font-medium uppercase text-zinc-500 dark:text-zinc-400">Tiempo restante</p>
@@ -319,9 +393,9 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
           </p>
         </div>
 
-        <h2 className="text-xl font-bold leading-8 text-zinc-900 dark:text-zinc-100 sm:text-2xl">
-          {currentQuestion.question}
-        </h2>
+        <div key={currentQuestion.id} className="min-w-0">
+          <PartialExamText text={currentQuestion.question} variant="question" />
+        </div>
 
         <div className="mt-6 grid gap-3">
           {currentQuestion.shuffledOptions.map((option, optionIndex) => {
@@ -332,20 +406,22 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
                 key={option.id}
                 type="button"
                 onClick={() => selectAnswer(option.id)}
-                className={`min-h-14 rounded-lg border px-4 py-3 text-left text-sm font-medium transition sm:text-base ${
+                className={`flex min-h-14 w-full min-w-0 items-start gap-2 rounded-lg border px-4 py-3 text-left text-sm font-medium transition sm:text-base ${
                   isSelected
                     ? "border-blue-500 bg-blue-50 text-blue-900 dark:border-blue-400 dark:bg-blue-950/40 dark:text-blue-100"
                     : "border-zinc-200 text-zinc-800 hover:bg-zinc-50 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800"
                 }`}
               >
-                <span className="mr-2 font-bold">{displayLabel}.</span>
-                {option.text}
+                <span className="shrink-0 font-bold">{displayLabel}.</span>
+                <span className="min-w-0 flex-1">
+                  <PartialExamText text={option.text} variant="option" />
+                </span>
               </button>
             );
           })}
         </div>
 
-        <div className="mt-6 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+        <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_auto]">
           <button
             type="button"
             disabled={currentIndex === 0}
@@ -366,7 +442,7 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
             type="button"
             disabled={!allQuestionsAnswered}
             onClick={() => finishSimulation("manual")}
-            className="rounded-md bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="col-span-2 rounded-md bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50 sm:col-span-1"
             title={allQuestionsAnswered ? undefined : "Responde todas las preguntas para finalizar"}
           >
             Finalizar
@@ -374,7 +450,7 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
         </div>
         {!allQuestionsAnswered && (
           <p className="mt-3 text-center text-sm text-zinc-500 dark:text-zinc-400 sm:text-right">
-            Responde todas las preguntas para finalizar el simulacro.
+            Responde todas las preguntas para finalizar el parcial.
           </p>
         )}
       </section>
@@ -386,14 +462,14 @@ export default function PartialExamSimulator({ partialExam, questions, recordAtt
 
 function CameraPreview({ videoRef }: { videoRef: RefObject<HTMLVideoElement | null> }) {
   return (
-    <aside className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900 lg:sticky lg:top-4 lg:self-start">
-      <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">Camara activa</p>
+    <aside className="order-first rounded-lg border border-zinc-200 bg-white p-2 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 lg:order-none lg:sticky lg:top-4 lg:self-start lg:p-3">
+      <p className="mb-2 text-xs font-medium text-zinc-700 dark:text-zinc-300 sm:text-sm">Camara activa</p>
       <video
         ref={videoRef}
         autoPlay
         muted
         playsInline
-        className="aspect-video w-full rounded-md bg-zinc-950 object-cover"
+        className="aspect-video max-h-36 w-full rounded-md bg-zinc-950 object-cover sm:max-h-none"
       />
     </aside>
   );

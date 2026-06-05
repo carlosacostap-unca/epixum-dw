@@ -95,6 +95,20 @@ const relationField = (name, collectionId, maxSelect = 1) => ({
   maxSelect,
 });
 
+const requiredRelationField = (name, collectionId, maxSelect = 1) => ({
+  ...relationField(name, collectionId, maxSelect),
+  required: true,
+  minSelect: 1,
+});
+
+const boolField = (name) => ({
+  type: 'bool',
+  name,
+  required: false,
+  presentable: false,
+  hidden: false,
+});
+
 loadEnvFile(path.join(process.cwd(), '.env.local'));
 
 const url = process.env.NEXT_PUBLIC_POCKETBASE_URL;
@@ -116,13 +130,16 @@ try {
 
 const teacherOnly = '@request.auth.role = "docente"';
 const publishedStudentSimulation =
-  '@request.auth.role = "docente" || (@request.auth.role = "estudiante" && status = "Publicado" && title = "Simulacro Mundial FIFA 2026")';
+  '@request.auth.role = "docente" || (@request.auth.role = "estudiante" && status = "Publicado")';
 const teacherOrStudent = '@request.auth.role = "docente" || @request.auth.role = "estudiante"';
 const selectedQuestionsForStudents =
   '@request.auth.role = "docente" || (@request.auth.role = "estudiante" && selected = true)';
 const teacherOrOwnStudentSimulation =
   '@request.auth.role = "docente" || (@request.auth.role = "estudiante" && student = @request.auth.id)';
 const ownStudentSimulationCreate = '@request.auth.role = "estudiante" && student = @request.auth.id';
+const ownStudentAttemptCreate = '@request.auth.role = "estudiante" && student = @request.auth.id';
+const ownStudentAttemptUpdate =
+  '@request.auth.role = "estudiante" && student = @request.auth.id';
 
 await ensureCollection(pb, {
   name: 'partial_exams',
@@ -195,7 +212,7 @@ if (!partialExamsCollection || !usersCollection) {
   throw new Error('Missing required collections for partial exam simulations.');
 }
 
-await ensureCollection(pb, {
+const simulationsCollection = await ensureCollection(pb, {
   name: 'partial_exam_simulations',
   type: 'base',
   listRule: teacherOrOwnStudentSimulation,
@@ -273,6 +290,9 @@ await ensureCollection(pb, {
       ...dateField('completedAt'),
       required: true,
     },
+    {
+      ...boolField('scoreVisible'),
+    },
   ],
   indexes: [],
 });
@@ -282,6 +302,96 @@ await ensureCollectionRules(pb, 'partial_exam_simulations', {
   viewRule: teacherOrOwnStudentSimulation,
   createRule: ownStudentSimulationCreate,
   updateRule: null,
+  deleteRule: null,
+});
+
+await ensureCollectionFields(pb, 'partial_exam_simulations', (fields) => {
+  if (fields.some((field) => field.name === 'scoreVisible')) {
+    return fields;
+  }
+
+  return [
+    ...fields,
+    boolField('scoreVisible'),
+  ];
+});
+
+await ensureCollection(pb, {
+  name: 'partial_exam_attempts',
+  type: 'base',
+  listRule: teacherOrOwnStudentSimulation,
+  viewRule: teacherOrOwnStudentSimulation,
+  createRule: ownStudentAttemptCreate,
+  updateRule: ownStudentAttemptUpdate,
+  deleteRule: null,
+  fields: [
+    {
+      ...relationField('partialExam', partialExamsCollection.id, 1),
+      required: true,
+      minSelect: 1,
+    },
+    {
+      ...relationField('student', usersCollection.id, 1),
+      required: true,
+      minSelect: 1,
+    },
+    {
+      type: 'json',
+      name: 'questionIds',
+      required: true,
+      presentable: false,
+      hidden: false,
+      maxSize: 0,
+    },
+    {
+      type: 'json',
+      name: 'answers',
+      required: true,
+      presentable: false,
+      hidden: false,
+      maxSize: 0,
+    },
+    {
+      type: 'select',
+      name: 'status',
+      required: true,
+      presentable: false,
+      hidden: false,
+      maxSelect: 1,
+      values: ['in_progress', 'submitted'],
+    },
+    {
+      ...dateField('startedAt'),
+      required: true,
+    },
+    {
+      ...dateField('lastSavedAt'),
+      required: true,
+    },
+    {
+      ...dateField('submittedAt'),
+    },
+    {
+      type: 'select',
+      name: 'finishReason',
+      required: false,
+      presentable: false,
+      hidden: false,
+      maxSelect: 1,
+      values: ['manual', 'time'],
+    },
+    {
+      ...relationField('completedSimulation', simulationsCollection.id, 1),
+    },
+  ],
+  indexes: [],
+});
+
+await ensureCollectionRules(pb, 'partial_exam_attempts', {
+  listRule: teacherOrOwnStudentSimulation,
+  viewRule: teacherOrOwnStudentSimulation,
+  createRule: ownStudentAttemptCreate,
+  updateRule: ownStudentAttemptUpdate,
   deleteRule: null,
 });
 
@@ -362,12 +472,20 @@ await ensureCollectionRules(pb, 'partial_exam_units', {
 
 await ensureCollectionFields(pb, 'partial_exams', (fields) => {
   if (fields.some((field) => field.name === 'questionBanks')) {
-    return fields;
+    return fields.map((field) => {
+      if (field.name !== 'questionBanks') return field;
+      return {
+        ...field,
+        required: true,
+        minSelect: 1,
+        maxSelect: field.maxSelect || 100,
+      };
+    });
   }
 
   return [
     ...fields,
-    relationField('questionBanks', unitsCollection.id, 0),
+    requiredRelationField('questionBanks', unitsCollection.id, 100),
   ];
 });
 

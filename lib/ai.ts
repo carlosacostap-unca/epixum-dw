@@ -107,7 +107,7 @@ Requisitos:
   2. "Explicar fragmento de codigo": presenta un fragmento corto y pide elegir que hace o que efecto produce.
   3. "Elegir codigo para necesidad": plantea una necesidad concreta y ofrece alternativas de codigo para resolverla.
   4. "Conceptual": preguntas teoricas o de comprension cuando sea necesario.
-- En preguntas con codigo, incluye fragmentos breves y legibles dentro del enunciado o las opciones. Usa saltos de linea y evita fragmentos extensos.
+- En preguntas con codigo, incluye fragmentos breves y legibles dentro del enunciado o las opciones. Usa Markdown con bloques de codigo fenced, por ejemplo \`\`\`html, \`\`\`css o \`\`\`js, y evita fragmentos extensos.
 - Los errores de codigo deben ser realistas para estudiantes iniciales: etiquetas mal cerradas, selectores incorrectos, propiedades CSS mal aplicadas, estructura HTML no semantica, orden de reglas o atributos mal usados.
 - La correccion esperada debe estar en la opcion correcta o explicada con claridad.
 - Incluye una explicacion breve y una referencia de fuente breve si se puede inferir del material.

@@ -53,17 +53,17 @@ export default function PartialExamsList({ partialExams }: { partialExams: Parti
 
               <div className="flex shrink-0 gap-2">
                 <Link
-                  href={`/parciales/${partialExam.id}/simular`}
+                  href={`/parciales/${partialExam.id}/realizar`}
                   className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
                 >
-                  Simular
+                  Vista previa
                 </Link>
-                {partialExam.title === "Simulacro Mundial FIFA 2026" && partialExam.status === "Publicado" && (
+                {partialExam.status === "Publicado" && (
                   <Link
-                    href={`/parciales/${partialExam.id}/simulaciones`}
+                    href={`/parciales/${partialExam.id}/resultados`}
                     className="inline-flex items-center rounded-md border border-emerald-300 px-3 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-200 dark:hover:bg-emerald-950/40"
                   >
-                    Simulaciones
+                    Resultados
                   </Link>
                 )}
                 <Link

@@ -7,11 +7,14 @@ import {
   Delivery,
   DeliveryFeedback,
   PartialExam,
+  PartialExamAttempt,
   PartialExamQuestion,
   PartialExamSimulation,
   PartialExamUnit,
   PartialExamUnitDocument,
 } from '@/types';
+import { getPartialExamAvailability } from './partial-exam-availability';
+import { normalizeRelationIds, PARTIAL_EXAM_QUESTION_COUNT } from './partial-exam-rules';
 import { unstable_cache } from 'next/cache';
 import { cache } from 'react';
 import PocketBase from 'pocketbase';
@@ -143,7 +146,8 @@ export async function getPublishedStudentPartialExams() {
   const pb = await createServerClient();
   try {
     return await pb.collection('partial_exams').getFullList<PartialExam>({
-      filter: 'status = "Publicado" && title = "Simulacro Mundial FIFA 2026"',
+      filter: 'status = "Publicado"',
+      sort: 'startsAt',
       expand: 'questionBanks',
     });
   } catch (error) {
@@ -240,29 +244,253 @@ function shuffleItems<T>(items: T[]) {
   return shuffled;
 }
 
-export async function getPartialExamSimulationQuestions(partialExam: PartialExam, limit = 10) {
+export async function getPartialExamSimulationQuestions(partialExam: PartialExam, limit = PARTIAL_EXAM_QUESTION_COUNT, fixedQuestionIds?: string[]) {
   const pb = await createServerClient();
-  const rawBankIds = partialExam.questionBanks;
-  const bankIds = Array.isArray(rawBankIds)
-    ? rawBankIds
-    : rawBankIds
-      ? [rawBankIds]
-      : [];
+  const bankIds = normalizeRelationIds(partialExam.questionBanks);
 
   if (bankIds.length === 0) {
     return [];
   }
 
   const unitFilter = bankIds.map((unitId) => `unit = "${unitId}"`).join(' || ');
+  const questionIds = Array.from(new Set((fixedQuestionIds || []).map(String).filter(Boolean)));
 
   try {
+    if (questionIds.length > 0) {
+      const questionFilter = questionIds.map((questionId) => pb.filter('id = {:questionId}', { questionId })).join(' || ');
+      const questions = await pb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
+        filter: `selected = true && (${questionFilter}) && (${unitFilter})`,
+      });
+      const questionsById = new Map(questions.map((question) => [question.id, question]));
+      return questionIds.map((questionId) => questionsById.get(questionId)).filter(Boolean) as PartialExamQuestion[];
+    }
+
     const questions = await pb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
       filter: `selected = true && (${unitFilter})`,
     });
+    if (questions.length < limit) {
+      return [];
+    }
+
     return shuffleItems(questions).slice(0, limit);
   } catch (error) {
     console.error('Error fetching partial exam simulation questions:', error);
     return [];
+  }
+}
+
+export async function getOrCreatePartialExamAttempt(partialExam: PartialExam, limit = PARTIAL_EXAM_QUESTION_COUNT) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || user.role !== 'estudiante') {
+    return null;
+  }
+
+  const submittedSimulation = await getLatestStudentPartialExamSimulation(partialExam.id);
+  if (submittedSimulation) {
+    return null;
+  }
+
+  try {
+    const activeAttempts = await pb.collection('partial_exam_attempts').getFullList<PartialExamAttempt>({
+      filter: pb.filter('partialExam = {:partialExamId} && student = {:studentId} && status = "in_progress"', {
+        partialExamId: partialExam.id,
+        studentId: user.id,
+      }),
+      sort: '-updated',
+    });
+
+    const activeAttempt = activeAttempts.find((attempt) => normalizeRelationIds(attempt.questionIds).length === limit);
+    if (activeAttempt) {
+      return activeAttempt;
+    }
+  } catch (error) {
+    console.error('Error fetching partial exam attempt:', error);
+    return null;
+  }
+
+  const availability = getPartialExamAvailability(partialExam);
+  if (!availability.isOpen) {
+    return null;
+  }
+
+  const questions = await getPartialExamSimulationQuestions(partialExam, limit);
+  if (questions.length !== limit) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+
+  try {
+    return await pb.collection('partial_exam_attempts').create<PartialExamAttempt>({
+      partialExam: partialExam.id,
+      student: user.id,
+      questionIds: questions.map((question) => question.id),
+      answers: {},
+      status: 'in_progress',
+      startedAt: now,
+      lastSavedAt: now,
+    });
+  } catch (error) {
+    console.error('Error creating partial exam attempt:', error);
+    return null;
+  }
+}
+
+export async function getLatestStudentPartialExamSimulation(partialExamId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || user.role !== 'estudiante') {
+    return null;
+  }
+
+  try {
+    const simulations = await pb.collection('partial_exam_simulations').getFullList<PartialExamSimulation>({
+      filter: pb.filter('partialExam = {:partialExamId} && student = {:studentId}', {
+        partialExamId,
+        studentId: user.id,
+      }),
+      sort: '-completedAt',
+    });
+
+    return simulations[0] || null;
+  } catch (error) {
+    console.error('Error fetching student partial exam simulation:', error);
+    return null;
+  }
+}
+
+export async function getStudentPartialExamResults(partialExamIds: string[]) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || user.role !== 'estudiante' || partialExamIds.length === 0) {
+    return new Map<string, PartialExamSimulation>();
+  }
+
+  try {
+    const examFilter = partialExamIds.map((partialExamId) => pb.filter('partialExam = {:partialExamId}', { partialExamId })).join(' || ');
+    const simulations = await pb.collection('partial_exam_simulations').getFullList<PartialExamSimulation>({
+      filter: `student = "${user.id}" && (${examFilter})`,
+      sort: '-completedAt',
+    });
+    const latestByExam = new Map<string, PartialExamSimulation>();
+
+    for (const simulation of simulations) {
+      if (!latestByExam.has(simulation.partialExam)) {
+        latestByExam.set(simulation.partialExam, simulation);
+      }
+    }
+
+    return latestByExam;
+  } catch (error) {
+    console.error('Error fetching student partial exam results:', error);
+    return new Map<string, PartialExamSimulation>();
+  }
+}
+
+export async function getActivePartialExamAttempt(partialExamId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || user.role !== 'estudiante') {
+    return null;
+  }
+
+  try {
+    const activeAttempts = await pb.collection('partial_exam_attempts').getFullList<PartialExamAttempt>({
+      filter: pb.filter('partialExam = {:partialExamId} && student = {:studentId} && status = "in_progress"', {
+        partialExamId,
+        studentId: user.id,
+      }),
+      sort: '-updated',
+    });
+
+    return activeAttempts[0] || null;
+  } catch (error) {
+    console.error('Error fetching active partial exam attempt:', error);
+    return null;
+  }
+}
+
+export async function autoSubmitExpiredPartialExamAttempt(partialExam: PartialExam) {
+  const availability = getPartialExamAvailability(partialExam);
+  if (!availability.hasEnded) return null;
+
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || user.role !== 'estudiante') {
+    return null;
+  }
+
+  const attempt = await getActivePartialExamAttempt(partialExam.id);
+  if (!attempt) return null;
+
+  const existingSimulation = await getLatestStudentPartialExamSimulation(partialExam.id);
+  if (existingSimulation) return existingSimulation;
+
+  const questionIds = normalizeRelationIds(attempt.questionIds);
+  if (questionIds.length !== PARTIAL_EXAM_QUESTION_COUNT) {
+    return null;
+  }
+
+  const questions = await getPartialExamSimulationQuestions(partialExam, questionIds.length, questionIds);
+  if (questions.length !== PARTIAL_EXAM_QUESTION_COUNT) {
+    return null;
+  }
+
+  const questionsById = new Map(questions.map((question) => [question.id, question]));
+  const answers = questionIds.reduce<Record<string, string>>((currentAnswers, questionId) => {
+    const answer = attempt.answers?.[questionId];
+    if (answer) currentAnswers[questionId] = answer;
+    return currentAnswers;
+  }, {});
+
+  let score = 0;
+  let answeredQuestions = 0;
+
+  for (const questionId of questionIds) {
+    const question = questionsById.get(questionId);
+    const answer = answers[questionId];
+    if (!question || !answer) continue;
+    answeredQuestions += 1;
+    if (answer === question.correctOptionId) {
+      score += 1;
+    }
+  }
+
+  const completedAt = new Date().toISOString();
+
+  try {
+    const simulation = await pb.collection('partial_exam_simulations').create<PartialExamSimulation>({
+      partialExam: partialExam.id,
+      student: user.id,
+      score,
+      totalQuestions: questionIds.length,
+      answeredQuestions,
+      questionIds,
+      answers,
+      finishReason: 'time',
+      completedAt,
+      scoreVisible: false,
+    });
+
+    await pb.collection('partial_exam_attempts').update(attempt.id, {
+      answers,
+      status: 'submitted',
+      finishReason: 'time',
+      submittedAt: completedAt,
+      lastSavedAt: completedAt,
+      completedSimulation: simulation.id,
+    });
+
+    return simulation;
+  } catch (error) {
+    console.error('Error auto-submitting expired partial exam attempt:', error);
+    return null;
   }
 }
 

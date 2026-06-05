@@ -124,6 +124,25 @@ export interface PartialExamQuestion extends BaseModel {
 }
 
 export type PartialExamSimulationFinishReason = 'manual' | 'time';
+export type PartialExamAttemptStatus = 'in_progress' | 'submitted';
+
+export interface PartialExamAttempt extends BaseModel {
+  partialExam: string;
+  student: string;
+  questionIds: string[];
+  answers: Record<string, string>;
+  status: PartialExamAttemptStatus;
+  startedAt: string;
+  lastSavedAt: string;
+  submittedAt?: string;
+  finishReason?: PartialExamSimulationFinishReason;
+  completedSimulation?: string;
+  expand?: {
+    partialExam?: PartialExam;
+    student?: User;
+    completedSimulation?: PartialExamSimulation;
+  };
+}
 
 export interface PartialExamSimulation extends BaseModel {
   partialExam: string;
@@ -135,6 +154,7 @@ export interface PartialExamSimulation extends BaseModel {
   answers: Record<string, string>;
   finishReason: PartialExamSimulationFinishReason;
   completedAt: string;
+  scoreVisible?: boolean;
   expand?: {
     partialExam?: PartialExam;
     student?: User;

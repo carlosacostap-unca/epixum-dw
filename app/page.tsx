@@ -72,7 +72,7 @@ export default async function Home() {
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M6 21h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2zm3-8h6m-6 4h4" /></svg>
                     </div>
                     <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Parciales</h2>
-                    <p className="text-zinc-500 dark:text-zinc-400">Realiza simulacros de parciales publicados.</p>
+                    <p className="text-zinc-500 dark:text-zinc-400">Realiza parciales publicados por el docente.</p>
                 </Link>
 
                 <Link href="/inquiries" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-orange-500 hover:shadow-md transition-all group">

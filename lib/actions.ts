@@ -8,9 +8,19 @@ import {
   generateMultipleChoiceQuestionsFromUnitDocument,
   generateMultipleChoiceQuestionsFromUnitPrompt,
 } from "./ai";
-import { Assignment, PartialExamQuestion, PartialExamSimulationFinishReason, PartialExamStatus } from "@/types";
+import {
+  Assignment,
+  PartialExam,
+  PartialExamAttempt,
+  PartialExamQuestion,
+  PartialExamSimulation,
+  PartialExamSimulationFinishReason,
+  PartialExamStatus,
+} from "@/types";
 import PocketBase from "pocketbase";
 import { getDeliveryLimitDate } from "./delivery-deadlines";
+import { getPartialExamAvailability } from "./partial-exam-availability";
+import { normalizeRelationIds, PARTIAL_EXAM_QUESTION_COUNT } from "./partial-exam-rules";
 
 type PartialExamPayload = {
   title: string;
@@ -57,6 +67,31 @@ async function createAdministrativeClient(authenticatedPb: PocketBase) {
     console.error("Falling back to authenticated PocketBase client for administrative approval:", error);
     return authenticatedPb;
   }
+}
+
+async function countSelectedQuestionsForBanks(pb: PocketBase, bankIds: string[]) {
+  if (bankIds.length === 0) return 0;
+
+  const unitFilter = bankIds.map((unitId) => pb.filter('unit = {:unitId}', { unitId })).join(' || ');
+  const questions = await pb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
+    filter: `selected = true && (${unitFilter})`,
+    fields: 'id',
+  });
+
+  return questions.length;
+}
+
+async function validatePartialExamBanks(pb: PocketBase, bankIds: string[]) {
+  if (bankIds.length === 0) {
+    return 'Selecciona al menos un banco de preguntas para el parcial.';
+  }
+
+  const selectedQuestions = await countSelectedQuestionsForBanks(pb, bankIds);
+  if (selectedQuestions < PARTIAL_EXAM_QUESTION_COUNT) {
+    return `Los bancos seleccionados deben tener al menos ${PARTIAL_EXAM_QUESTION_COUNT} preguntas seleccionadas. Actualmente tienen ${selectedQuestions}.`;
+  }
+
+  return null;
 }
 
 function isAdministrativeApprovalAssignment(assignment: Pick<Assignment, 'title'>) {
@@ -451,6 +486,11 @@ export async function createPartialExam(formData: FormData) {
   }
 
   try {
+    const bankValidationError = await validatePartialExamBanks(pb, questionBanks);
+    if (bankValidationError) {
+      return { success: false, error: bankValidationError };
+    }
+
     const data: PartialExamPayload = {
       title,
       description,
@@ -492,6 +532,11 @@ export async function updatePartialExam(partialExamId: string, formData: FormDat
   }
 
   try {
+    const bankValidationError = await validatePartialExamBanks(pb, questionBanks);
+    if (bankValidationError) {
+      return { success: false, error: bankValidationError };
+    }
+
     const data: PartialExamPayload = {
       title,
       description,
@@ -533,9 +578,63 @@ export async function deletePartialExam(partialExamId: string) {
   }
 }
 
-function normalizeRelationIds(value: unknown) {
-  if (Array.isArray(value)) return value.map(String).filter(Boolean);
-  return value ? [String(value)] : [];
+function getAnswersForQuestionIds(answers: Record<string, string> | undefined, questionIds: string[]) {
+  return questionIds.reduce<Record<string, string>>((currentAnswers, questionId) => {
+    const answer = answers?.[questionId];
+    if (answer) currentAnswers[questionId] = answer;
+    return currentAnswers;
+  }, {});
+}
+
+export async function savePartialExamAttemptProgress(params: {
+  attemptId: string;
+  partialExamId: string;
+  answers: Record<string, string>;
+}) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || user.role !== 'estudiante') {
+    return { success: false, error: 'Solo los estudiantes pueden guardar parciales.' };
+  }
+
+  const attemptId = params.attemptId?.trim();
+  const partialExamId = params.partialExamId?.trim();
+
+  if (!attemptId || !partialExamId) {
+    return { success: false, error: 'No se encontro el intento del parcial.' };
+  }
+
+  try {
+    const [partialExam, attempt] = await Promise.all([
+      pb.collection('partial_exams').getOne<PartialExam>(partialExamId),
+      pb.collection('partial_exam_attempts').getOne<PartialExamAttempt>(attemptId),
+    ]);
+
+    if (attempt.partialExam !== partialExamId || attempt.student !== user.id || attempt.status !== 'in_progress') {
+      return { success: false, error: 'El intento del parcial no esta disponible.' };
+    }
+
+    const availability = getPartialExamAvailability(partialExam);
+    if (!availability.isOpen) {
+      return { success: false, error: 'El parcial no esta abierto para guardar respuestas.' };
+    }
+
+    const questionIds = normalizeRelationIds(attempt.questionIds);
+    if (questionIds.length !== PARTIAL_EXAM_QUESTION_COUNT) {
+      return { success: false, error: `El intento debe tener ${PARTIAL_EXAM_QUESTION_COUNT} preguntas.` };
+    }
+
+    await pb.collection('partial_exam_attempts').update(attemptId, {
+      answers: getAnswersForQuestionIds(params.answers, questionIds),
+      lastSavedAt: new Date().toISOString(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to save partial exam attempt:', error);
+    return { success: false, error: 'No se pudieron guardar las respuestas.' };
+  }
 }
 
 export async function recordPartialExamSimulation(params: {
@@ -543,25 +642,53 @@ export async function recordPartialExamSimulation(params: {
   questionIds: string[];
   answers: Record<string, string>;
   finishReason: PartialExamSimulationFinishReason;
+  attemptId?: string;
 }) {
   const pb = await createServerClient();
   const user = pb.authStore.model;
 
   if (!user || user.role !== 'estudiante') {
-    return { success: false, error: 'Solo los estudiantes pueden registrar simulacros.' };
+    return { success: false, error: 'Solo los estudiantes pueden enviar parciales.' };
   }
 
   const partialExamId = params.partialExamId?.trim();
-  const questionIds = Array.from(new Set((params.questionIds || []).map(String).filter(Boolean)));
+  const requestedQuestionIds = Array.from(new Set((params.questionIds || []).map(String).filter(Boolean)));
 
-  if (!partialExamId || questionIds.length === 0) {
+  if (!partialExamId || requestedQuestionIds.length === 0) {
     return { success: false, error: 'No hay preguntas para registrar.' };
   }
 
   try {
-    const partialExam = await pb.collection('partial_exams').getOne(partialExamId);
-    if (partialExam.title !== 'Simulacro Mundial FIFA 2026' || partialExam.status !== 'Publicado') {
-      return { success: false, error: 'El simulacro no esta disponible para estudiantes.' };
+    const partialExam = await pb.collection('partial_exams').getOne<PartialExam>(partialExamId);
+    const availability = getPartialExamAvailability(partialExam);
+    if (!availability.isPublished || !availability.hasStarted) {
+      return { success: false, error: 'El parcial no esta disponible para estudiantes.' };
+    }
+
+    let attempt: PartialExamAttempt | null = null;
+    if (params.attemptId) {
+      attempt = await pb.collection('partial_exam_attempts').getOne<PartialExamAttempt>(params.attemptId);
+      if (attempt.partialExam !== partialExamId || attempt.student !== user.id) {
+        return { success: false, error: 'El intento del parcial no corresponde al estudiante.' };
+      }
+
+      if (attempt.status === 'submitted') {
+        return { success: true, totalQuestions: normalizeRelationIds(attempt.questionIds).length };
+      }
+    } else if (availability.hasEnded) {
+      return { success: false, error: 'El parcial ya finalizo.' };
+    }
+
+    const previousSimulations = await pb.collection('partial_exam_simulations').getFullList<PartialExamSimulation>({
+      filter: pb.filter('partialExam = {:partialExamId} && student = {:studentId}', {
+        partialExamId,
+        studentId: user.id,
+      }),
+      sort: '-completedAt',
+    });
+
+    if (previousSimulations.length > 0) {
+      return { success: false, error: 'El parcial ya fue enviado.' };
     }
 
     const bankIds = normalizeRelationIds(partialExam.questionBanks);
@@ -569,18 +696,27 @@ export async function recordPartialExamSimulation(params: {
       return { success: false, error: 'El parcial no tiene bancos de preguntas asociados.' };
     }
 
+    const questionIds = attempt ? normalizeRelationIds(attempt.questionIds) : requestedQuestionIds;
+    if (questionIds.length !== PARTIAL_EXAM_QUESTION_COUNT) {
+      return { success: false, error: `El parcial debe enviarse con ${PARTIAL_EXAM_QUESTION_COUNT} preguntas.` };
+    }
+
     const questionFilter = questionIds.map((questionId) => `id = "${questionId}"`).join(' || ');
     const unitFilter = bankIds.map((unitId) => `unit = "${unitId}"`).join(' || ');
     const questions = await pb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
       filter: `selected = true && (${questionFilter}) && (${unitFilter})`,
     });
+    if (questions.length !== PARTIAL_EXAM_QUESTION_COUNT) {
+      return { success: false, error: `No se pudieron validar las ${PARTIAL_EXAM_QUESTION_COUNT} preguntas del parcial.` };
+    }
 
     const questionsById = new Map(questions.map((question) => [question.id, question]));
     let score = 0;
     let answeredQuestions = 0;
+    const answers = getAnswersForQuestionIds(params.answers, questionIds);
 
     for (const questionId of questionIds) {
-      const answer = params.answers?.[questionId];
+      const answer = answers[questionId];
       const question = questionsById.get(questionId);
       if (!question || !answer) continue;
       answeredQuestions += 1;
@@ -589,24 +725,61 @@ export async function recordPartialExamSimulation(params: {
       }
     }
 
-    await pb.collection('partial_exam_simulations').create({
+    const finishReason = availability.hasEnded ? 'time' : params.finishReason;
+    const completedAt = new Date().toISOString();
+
+    const simulation = await pb.collection('partial_exam_simulations').create({
       partialExam: partialExamId,
       student: user.id,
       score,
       totalQuestions: questionIds.length,
       answeredQuestions,
       questionIds,
-      answers: params.answers || {},
-      finishReason: params.finishReason,
-      completedAt: new Date().toISOString(),
+      answers,
+      finishReason,
+      completedAt,
+      scoreVisible: false,
+    });
+
+    if (attempt) {
+      await pb.collection('partial_exam_attempts').update(attempt.id, {
+        answers,
+        status: 'submitted',
+        finishReason,
+        submittedAt: completedAt,
+        lastSavedAt: completedAt,
+        completedSimulation: simulation.id,
+      });
+    }
+
+    revalidatePath('/parciales');
+    revalidatePath(`/parciales/${partialExamId}/resultados`);
+    return { success: true, totalQuestions: questionIds.length };
+  } catch (error) {
+    console.error('Failed to record partial exam simulation:', error);
+    return { success: false, error: 'No se pudo enviar el parcial.' };
+  }
+}
+
+export async function setPartialExamScoreVisibility(simulationId: string, visible: boolean) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model;
+
+  if (!user || user.role !== 'docente') {
+    return { success: false, error: 'Solo los docentes pueden publicar notas.' };
+  }
+
+  try {
+    const simulation = await pb.collection('partial_exam_simulations').update<PartialExamSimulation>(simulationId, {
+      scoreVisible: visible,
     });
 
     revalidatePath('/parciales');
-    revalidatePath(`/parciales/${partialExamId}/simulaciones`);
-    return { success: true, score, totalQuestions: questionIds.length };
+    revalidatePath(`/parciales/${simulation.partialExam}/resultados`);
+    return { success: true };
   } catch (error) {
-    console.error('Failed to record partial exam simulation:', error);
-    return { success: false, error: 'No se pudo registrar el simulacro.' };
+    console.error('Failed to update partial exam score visibility:', error);
+    return { success: false, error: 'No se pudo actualizar la visibilidad de la nota.' };
   }
 }
 

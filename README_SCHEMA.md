@@ -76,12 +76,16 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - `description`: Editor (Rich Text)
     - `startsAt`: Date
     - `endsAt`: Date
-    - `questionBanks`: Relation (Multiple, Optional) -> Collection: `partial_exam_units`
+    - `questionBanks`: Relation (Multiple, Required, min 1) -> Collection: `partial_exam_units`
     - `topics`: Text
     - `status`: Select (options: "Planificado", "Publicado", "Finalizado") (Default: "Planificado")
 - **API Rules**:
-    - **List/View Rule**: `@request.auth.role = "docente" || (@request.auth.role = "estudiante" && status = "Publicado" && title = "Simulacro Mundial FIFA 2026")`
+    - **List/View Rule**: `@request.auth.role = "docente" || (@request.auth.role = "estudiante" && status = "Publicado")`
     - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
+- **Regla de negocio**:
+    - Cada parcial debe tener uno o mas bancos asociados.
+    - Los bancos asociados deben aportar al menos 10 preguntas seleccionadas.
+    - Cada intento de estudiante congela 10 preguntas al azar y se evalua solamente sobre esas 10 preguntas, 1 punto por pregunta.
 
 ## 4.2. Colección: `partial_exam_units` (Unidades para Banco de Preguntas)
 - **Name**: `partial_exam_units`
@@ -124,7 +128,7 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - **List/View Rule**: `@request.auth.role = "docente" || (@request.auth.role = "estudiante" && selected = true)`
     - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
 
-## 4.5. Coleccion: `partial_exam_simulations` (Simulacros de Parciales)
+## 4.5. Coleccion: `partial_exam_simulations` (Resultados de Parciales)
 - **Name**: `partial_exam_simulations`
 - **Type**: `Base`
 - **Fields**:
@@ -137,10 +141,33 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - `answers`: JSON
     - `finishReason`: Select (options: "manual", "time")
     - `completedAt`: Date (Required)
+    - `scoreVisible`: Bool (Default: false, controla si el alumno puede ver la nota)
 - **API Rules**:
     - **List/View Rule**: `@request.auth.role = "docente" || (@request.auth.role = "estudiante" && student = @request.auth.id)`
     - **Create Rule**: `@request.auth.role = "estudiante" && student = @request.auth.id`
     - **Update/Delete Rule**: Disabled
+
+## 4.6. Coleccion: `partial_exam_attempts` (Intentos en progreso)
+- **Name**: `partial_exam_attempts`
+- **Type**: `Base`
+- **Fields**:
+    - `partialExam`: Relation (Single, Required) -> Collection: `partial_exams`
+    - `student`: Relation (Single, Required) -> Collection: `users`
+    - `questionIds`: JSON (Required)
+    - `answers`: JSON (Required)
+    - `status`: Select (options: "in_progress", "submitted")
+    - `startedAt`: Date (Required)
+    - `lastSavedAt`: Date (Required)
+    - `submittedAt`: Date
+    - `finishReason`: Select (options: "manual", "time")
+    - `completedSimulation`: Relation (Single, Optional) -> Collection: `partial_exam_simulations`
+- **Regla de negocio**:
+    - `questionIds` debe guardar exactamente 10 ids de preguntas para congelar el set del alumno.
+- **API Rules**:
+    - **List/View Rule**: `@request.auth.role = "docente" || (@request.auth.role = "estudiante" && student = @request.auth.id)`
+    - **Create Rule**: `@request.auth.role = "estudiante" && student = @request.auth.id`
+    - **Update Rule**: `@request.auth.role = "estudiante" && student = @request.auth.id`
+    - **Delete Rule**: Disabled
 
 ## 5. Colección: `deliveries` (Entregas de TP)
 - **Name**: `deliveries`

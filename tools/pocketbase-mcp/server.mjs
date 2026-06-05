@@ -194,6 +194,7 @@ const requiredCourseCollections = [
   "partial_exam_unit_documents",
   "partial_exam_questions",
   "partial_exam_simulations",
+  "partial_exam_attempts",
   "deliveries",
   "delivery_feedbacks",
   "teams",

@@ -1,6 +1,7 @@
 "use client";
 
 import { createPartialExam, updatePartialExam } from "@/lib/actions";
+import { PARTIAL_EXAM_QUESTION_COUNT } from "@/lib/partial-exam-rules";
 import { PartialExam, PartialExamStatus, PartialExamUnit } from "@/types";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -50,6 +51,11 @@ export default function PartialExamForm({ partialExam, questionBanks = [], onClo
     }
     formData.set("description", description);
     formData.set("status", status);
+    if (formData.getAll("questionBanks").length === 0) {
+      setError("Selecciona al menos un banco de preguntas para el parcial.");
+      setLoading(false);
+      return;
+    }
 
     try {
       const result = partialExam
@@ -156,7 +162,7 @@ export default function PartialExamForm({ partialExam, questionBanks = [], onClo
           <div className="mb-2">
             <span className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Bancos de preguntas</span>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              Selecciona una o mas unidades del banco para asociarlas a este parcial.
+              Selecciona una o mas unidades. El parcial tomara {PARTIAL_EXAM_QUESTION_COUNT} preguntas al azar de esos bancos.
             </p>
           </div>
           {questionBanks.length === 0 ? (
