@@ -867,10 +867,19 @@ export async function setPartialExamScoreVisibility(simulationId: string, visibl
   }
 
   try {
-    const adminPb = await createAdministrativeClient(pb);
-    const simulation = await adminPb.collection('partial_exam_simulations').update<PartialExamSimulation>(simulationId, {
-      scoreVisible: visible,
-    });
+    let simulation: PartialExamSimulation;
+
+    try {
+      simulation = await pb.collection('partial_exam_simulations').update<PartialExamSimulation>(simulationId, {
+        scoreVisible: visible,
+      });
+    } catch (authenticatedError) {
+      console.error('Failed to update partial exam score visibility with docente session:', authenticatedError);
+      const adminPb = await createAdministrativeClient(pb);
+      simulation = await adminPb.collection('partial_exam_simulations').update<PartialExamSimulation>(simulationId, {
+        scoreVisible: visible,
+      });
+    }
 
     revalidatePath('/parciales');
     revalidatePath(`/parciales/${simulation.partialExam}/resultados`);

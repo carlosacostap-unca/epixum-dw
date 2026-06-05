@@ -157,6 +157,7 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - `finishReason`: Select (options: "manual", "time")
     - `completedAt`: Date (Required)
     - `scoreVisible`: Bool (Default: false, controla si el alumno puede ver la nota)
+    - Rules: los docentes pueden listar/ver resultados de todos los estudiantes y actualizar la visibilidad de la nota; los estudiantes solo pueden crear/ver sus propios resultados.
 - **API Rules**:
     - **List/View Rule**: `@request.auth.role = "docente" || (@request.auth.role = "estudiante" && student = @request.auth.id)`
     - **Create Rule**: `@request.auth.role = "estudiante" && student = @request.auth.id`

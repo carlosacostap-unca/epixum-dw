@@ -348,7 +348,7 @@ await ensureCollectionRules(pb, 'partial_exam_simulations', {
   listRule: teacherOrOwnStudentSimulation,
   viewRule: teacherOrOwnStudentSimulation,
   createRule: ownStudentSimulationCreate,
-  updateRule: null,
+  updateRule: teacherOnly,
   deleteRule: null,
 });
 
