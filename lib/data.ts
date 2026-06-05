@@ -312,7 +312,8 @@ export async function getOrCreatePartialExamAttempt(partialExam: PartialExam, li
   }
 
   try {
-    const activeAttempts = await pb.collection('partial_exam_attempts').getFullList<PartialExamAttempt>({
+    const attemptPb = await createQuestionBankReadClient();
+    const activeAttempts = await attemptPb.collection('partial_exam_attempts').getFullList<PartialExamAttempt>({
       filter: pb.filter('partialExam = {:partialExamId} && student = {:studentId} && status = "in_progress"', {
         partialExamId: partialExam.id,
         studentId: user.id,
@@ -342,7 +343,8 @@ export async function getOrCreatePartialExamAttempt(partialExam: PartialExam, li
   const now = new Date().toISOString();
 
   try {
-    return await pb.collection('partial_exam_attempts').create<PartialExamAttempt>({
+    const attemptPb = await createQuestionBankReadClient();
+    return await attemptPb.collection('partial_exam_attempts').create<PartialExamAttempt>({
       partialExam: partialExam.id,
       student: user.id,
       questionIds: questions.map((question) => question.id),
@@ -419,7 +421,8 @@ export async function getActivePartialExamAttempt(partialExamId: string) {
   }
 
   try {
-    const activeAttempts = await pb.collection('partial_exam_attempts').getFullList<PartialExamAttempt>({
+    const attemptPb = await createQuestionBankReadClient();
+    const activeAttempts = await attemptPb.collection('partial_exam_attempts').getFullList<PartialExamAttempt>({
       filter: pb.filter('partialExam = {:partialExamId} && student = {:studentId} && status = "in_progress"', {
         partialExamId,
         studentId: user.id,
@@ -484,7 +487,8 @@ export async function autoSubmitExpiredPartialExamAttempt(partialExam: PartialEx
   const completedAt = new Date().toISOString();
 
   try {
-    const simulation = await pb.collection('partial_exam_simulations').create<PartialExamSimulation>({
+    const attemptPb = await createQuestionBankReadClient();
+    const simulation = await attemptPb.collection('partial_exam_simulations').create<PartialExamSimulation>({
       partialExam: partialExam.id,
       student: user.id,
       score,
@@ -497,7 +501,7 @@ export async function autoSubmitExpiredPartialExamAttempt(partialExam: PartialEx
       scoreVisible: false,
     });
 
-    await pb.collection('partial_exam_attempts').update(attempt.id, {
+    await attemptPb.collection('partial_exam_attempts').update(attempt.id, {
       answers,
       status: 'submitted',
       finishReason: 'time',

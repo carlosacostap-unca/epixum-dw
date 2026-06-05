@@ -606,9 +606,10 @@ export async function savePartialExamAttemptProgress(params: {
   }
 
   try {
+    const dataPb = await createAdministrativeClient(pb);
     const [partialExam, attempt] = await Promise.all([
-      pb.collection('partial_exams').getOne<PartialExam>(partialExamId),
-      pb.collection('partial_exam_attempts').getOne<PartialExamAttempt>(attemptId),
+      dataPb.collection('partial_exams').getOne<PartialExam>(partialExamId),
+      dataPb.collection('partial_exam_attempts').getOne<PartialExamAttempt>(attemptId),
     ]);
 
     if (attempt.partialExam !== partialExamId || attempt.student !== user.id || attempt.status !== 'in_progress') {
@@ -625,7 +626,7 @@ export async function savePartialExamAttemptProgress(params: {
       return { success: false, error: `El intento debe tener ${PARTIAL_EXAM_QUESTION_COUNT} preguntas.` };
     }
 
-    await pb.collection('partial_exam_attempts').update(attemptId, {
+    await dataPb.collection('partial_exam_attempts').update(attemptId, {
       answers: getAnswersForQuestionIds(params.answers, questionIds),
       lastSavedAt: new Date().toISOString(),
     });
@@ -659,7 +660,8 @@ export async function recordPartialExamSimulation(params: {
   }
 
   try {
-    const partialExam = await pb.collection('partial_exams').getOne<PartialExam>(partialExamId);
+    const dataPb = await createAdministrativeClient(pb);
+    const partialExam = await dataPb.collection('partial_exams').getOne<PartialExam>(partialExamId);
     const availability = getPartialExamAvailability(partialExam);
     if (!availability.isPublished || !availability.hasStarted) {
       return { success: false, error: 'El parcial no esta disponible para estudiantes.' };
@@ -667,7 +669,7 @@ export async function recordPartialExamSimulation(params: {
 
     let attempt: PartialExamAttempt | null = null;
     if (params.attemptId) {
-      attempt = await pb.collection('partial_exam_attempts').getOne<PartialExamAttempt>(params.attemptId);
+      attempt = await dataPb.collection('partial_exam_attempts').getOne<PartialExamAttempt>(params.attemptId);
       if (attempt.partialExam !== partialExamId || attempt.student !== user.id) {
         return { success: false, error: 'El intento del parcial no corresponde al estudiante.' };
       }
@@ -679,7 +681,7 @@ export async function recordPartialExamSimulation(params: {
       return { success: false, error: 'El parcial ya finalizo.' };
     }
 
-    const previousSimulations = await pb.collection('partial_exam_simulations').getFullList<PartialExamSimulation>({
+    const previousSimulations = await dataPb.collection('partial_exam_simulations').getFullList<PartialExamSimulation>({
       filter: pb.filter('partialExam = {:partialExamId} && student = {:studentId}', {
         partialExamId,
         studentId: user.id,
@@ -703,8 +705,7 @@ export async function recordPartialExamSimulation(params: {
 
     const questionFilter = questionIds.map((questionId) => `id = "${questionId}"`).join(' || ');
     const unitFilter = bankIds.map((unitId) => `unit = "${unitId}"`).join(' || ');
-    const questionPb = await createAdministrativeClient(pb);
-    const questions = await questionPb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
+    const questions = await dataPb.collection('partial_exam_questions').getFullList<PartialExamQuestion>({
       filter: `(${questionFilter}) && (${unitFilter})`,
     });
     if (questions.length !== PARTIAL_EXAM_QUESTION_COUNT) {
@@ -729,7 +730,7 @@ export async function recordPartialExamSimulation(params: {
     const finishReason = availability.hasEnded ? 'time' : params.finishReason;
     const completedAt = new Date().toISOString();
 
-    const simulation = await pb.collection('partial_exam_simulations').create({
+    const simulation = await dataPb.collection('partial_exam_simulations').create({
       partialExam: partialExamId,
       student: user.id,
       score,
@@ -743,7 +744,7 @@ export async function recordPartialExamSimulation(params: {
     });
 
     if (attempt) {
-      await pb.collection('partial_exam_attempts').update(attempt.id, {
+      await dataPb.collection('partial_exam_attempts').update(attempt.id, {
         answers,
         status: 'submitted',
         finishReason,
