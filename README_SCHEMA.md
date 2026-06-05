@@ -84,10 +84,24 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
 - **Regla de negocio**:
     - Cada parcial debe tener uno o mas bancos asociados.
+    - Cada parcial puede tener uno o mas turnos en `partial_exam_turns`.
     - Los bancos asociados deben aportar al menos 10 preguntas cargadas.
     - Cada intento de estudiante congela 10 preguntas al azar y se evalua solamente sobre esas 10 preguntas, 1 punto por pregunta.
+    - Cada estudiante puede enviar un parcial una sola vez, independientemente del turno en el que lo haya iniciado.
 
-## 4.2. Colección: `partial_exam_units` (Unidades para Banco de Preguntas)
+## 4.2. Coleccion: `partial_exam_turns` (Turnos de Parcial)
+- **Name**: `partial_exam_turns`
+- **Type**: `Base`
+- **Fields**:
+    - `partialExam`: Relation (Single, Required) -> Collection: `partial_exams`
+    - `name`: Text (Required)
+    - `startsAt`: Date (Required)
+    - `endsAt`: Date (Required)
+- **API Rules**:
+    - **List/View Rule**: `@request.auth.role = "docente" || @request.auth.role = "estudiante"`
+    - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
+
+## 4.3. Colección: `partial_exam_units` (Unidades para Banco de Preguntas)
 - **Name**: `partial_exam_units`
 - **Type**: `Base`
 - **Fields**:
@@ -98,7 +112,7 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - **List/View Rule**: `@request.auth.role = "docente" || @request.auth.role = "estudiante"`
     - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
 
-## 4.3. Colección: `partial_exam_unit_documents` (Documentos de Unidad)
+## 4.4. Colección: `partial_exam_unit_documents` (Documentos de Unidad)
 - **Name**: `partial_exam_unit_documents`
 - **Type**: `Base`
 - **Fields**:
@@ -110,7 +124,7 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - **List/View Rule**: `@request.auth.role = "docente"`
     - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
 
-## 4.4. Colección: `partial_exam_questions` (Banco de Preguntas)
+## 4.5. Colección: `partial_exam_questions` (Banco de Preguntas)
 - **Name**: `partial_exam_questions`
 - **Type**: `Base`
 - **Fields**:
@@ -128,11 +142,12 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - **List/View Rule**: `@request.auth.role = "docente" || @request.auth.role = "estudiante"`
     - **Create/Update/Delete Rule**: `@request.auth.role = "docente"`
 
-## 4.5. Coleccion: `partial_exam_simulations` (Resultados de Parciales)
+## 4.6. Coleccion: `partial_exam_simulations` (Resultados de Parciales)
 - **Name**: `partial_exam_simulations`
 - **Type**: `Base`
 - **Fields**:
     - `partialExam`: Relation (Single, Required) -> Collection: `partial_exams`
+    - `turn`: Relation (Single, Optional) -> Collection: `partial_exam_turns`
     - `student`: Relation (Single, Required) -> Collection: `users`
     - `score`: Number (Integer, Required)
     - `totalQuestions`: Number (Integer, Required)
@@ -147,14 +162,15 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - **Create Rule**: `@request.auth.role = "estudiante" && student = @request.auth.id`
     - **Update/Delete Rule**: Disabled
 
-## 4.6. Coleccion: `partial_exam_attempts` (Intentos en progreso)
+## 4.7. Coleccion: `partial_exam_attempts` (Intentos en progreso)
 - **Name**: `partial_exam_attempts`
 - **Type**: `Base`
 - **Fields**:
     - `partialExam`: Relation (Single, Required) -> Collection: `partial_exams`
+    - `turn`: Relation (Single, Optional) -> Collection: `partial_exam_turns`
     - `student`: Relation (Single, Required) -> Collection: `users`
     - `questionIds`: JSON (Required)
-    - `answers`: JSON (Required)
+    - `answers`: JSON
     - `status`: Select (options: "in_progress", "submitted")
     - `startedAt`: Date (Required)
     - `lastSavedAt`: Date (Required)
@@ -163,6 +179,7 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - `completedSimulation`: Relation (Single, Optional) -> Collection: `partial_exam_simulations`
 - **Regla de negocio**:
     - `questionIds` debe guardar exactamente 10 ids de preguntas para congelar el set del alumno.
+    - `turn` identifica la ventana de rendido que inicio el alumno.
 - **API Rules**:
     - **List/View Rule**: `@request.auth.role = "docente" || (@request.auth.role = "estudiante" && student = @request.auth.id)`
     - **Create Rule**: `@request.auth.role = "estudiante" && student = @request.auth.id`

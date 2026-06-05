@@ -68,6 +68,11 @@ export default async function PartialExamResultsPage({ params }: { params: Promi
                         Ultimo intento: <FormattedDate date={latestSimulation.completedAt} locale="es-AR" showTime />
                       </span>
                     )}
+                    {latestSimulation?.expand?.turn && (
+                      <span className="rounded-full bg-zinc-100 px-2.5 py-1 dark:bg-zinc-800">
+                        {latestSimulation.expand.turn.name}
+                      </span>
+                    )}
                     <span className="rounded-full bg-zinc-100 px-2.5 py-1 dark:bg-zinc-800">
                       {attempts} envio{attempts === 1 ? "" : "s"}
                     </span>

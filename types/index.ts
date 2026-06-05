@@ -73,8 +73,19 @@ export interface PartialExam extends BaseModel {
   questionBanks?: string[] | string;
   topics?: string;
   status?: PartialExamStatus;
+  turns?: PartialExamTurn[];
   expand?: {
     questionBanks?: PartialExamUnit[];
+  };
+}
+
+export interface PartialExamTurn extends BaseModel {
+  partialExam: string;
+  name: string;
+  startsAt: string;
+  endsAt: string;
+  expand?: {
+    partialExam?: PartialExam;
   };
 }
 
@@ -128,6 +139,7 @@ export type PartialExamAttemptStatus = 'in_progress' | 'submitted';
 
 export interface PartialExamAttempt extends BaseModel {
   partialExam: string;
+  turn?: string;
   student: string;
   questionIds: string[];
   answers: Record<string, string>;
@@ -139,6 +151,7 @@ export interface PartialExamAttempt extends BaseModel {
   completedSimulation?: string;
   expand?: {
     partialExam?: PartialExam;
+    turn?: PartialExamTurn;
     student?: User;
     completedSimulation?: PartialExamSimulation;
   };
@@ -146,6 +159,7 @@ export interface PartialExamAttempt extends BaseModel {
 
 export interface PartialExamSimulation extends BaseModel {
   partialExam: string;
+  turn?: string;
   student: string;
   score: number;
   totalQuestions: number;
@@ -157,6 +171,7 @@ export interface PartialExamSimulation extends BaseModel {
   scoreVisible?: boolean;
   expand?: {
     partialExam?: PartialExam;
+    turn?: PartialExamTurn;
     student?: User;
   };
 }

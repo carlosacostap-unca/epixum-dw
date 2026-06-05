@@ -10,6 +10,7 @@ import {
   PartialExamAttempt,
   PartialExamQuestion,
   PartialExamSimulation,
+  PartialExamTurn,
   PartialExamUnit,
   PartialExamUnitDocument,
 } from '@/types';
@@ -139,7 +140,41 @@ export async function getAllPartialExams() {
   const records = await pb.collection('partial_exams').getFullList<PartialExam>({
     expand: 'questionBanks',
   });
-  return records;
+  return attachPartialExamTurns(records);
+}
+
+async function getPartialExamTurnsByExamIds(partialExamIds: string[]) {
+  if (partialExamIds.length === 0) return new Map<string, PartialExamTurn[]>();
+
+  const pb = await createQuestionBankReadClient();
+  const examFilter = partialExamIds.map((partialExamId) => pb.filter('partialExam = {:partialExamId}', { partialExamId })).join(' || ');
+
+  try {
+    const turns = await pb.collection('partial_exam_turns').getFullList<PartialExamTurn>({
+      filter: `(${examFilter})`,
+      sort: 'startsAt',
+    });
+    const turnsByExam = new Map<string, PartialExamTurn[]>();
+
+    for (const turn of turns) {
+      const currentTurns = turnsByExam.get(turn.partialExam) || [];
+      currentTurns.push(turn);
+      turnsByExam.set(turn.partialExam, currentTurns);
+    }
+
+    return turnsByExam;
+  } catch (error) {
+    console.error('Error fetching partial exam turns:', error);
+    return new Map<string, PartialExamTurn[]>();
+  }
+}
+
+async function attachPartialExamTurns<T extends PartialExam>(partialExams: T[]) {
+  const turnsByExam = await getPartialExamTurnsByExamIds(partialExams.map((partialExam) => partialExam.id));
+  return partialExams.map((partialExam) => ({
+    ...partialExam,
+    turns: turnsByExam.get(partialExam.id) || [],
+  }));
 }
 
 export async function getPartialExamsManagementData() {
@@ -168,10 +203,16 @@ export async function getPartialExamsManagementData() {
 export async function getPublishedStudentPartialExams() {
   const pb = await createServerClient();
   try {
-    return await pb.collection('partial_exams').getFullList<PartialExam>({
+    const partialExams = await pb.collection('partial_exams').getFullList<PartialExam>({
       filter: 'status = "Publicado"',
       sort: 'startsAt',
       expand: 'questionBanks',
+    });
+    const partialExamsWithTurns = await attachPartialExamTurns(partialExams);
+    return partialExamsWithTurns.sort((a, b) => {
+      const aStart = a.turns?.[0]?.startsAt || a.startsAt || '';
+      const bStart = b.turns?.[0]?.startsAt || b.startsAt || '';
+      return aStart.localeCompare(bStart);
     });
   } catch (error) {
     console.error('Error fetching published student partial exams:', error);
@@ -184,7 +225,8 @@ export async function getPartialExam(id: string) {
   const record = await pb.collection('partial_exams').getOne<PartialExam>(id, {
     expand: 'questionBanks',
   });
-  return record;
+  const [recordWithTurns] = await attachPartialExamTurns([record]);
+  return recordWithTurns;
 }
 
 export async function getPartialExamUnits() {
@@ -341,11 +383,13 @@ export async function getOrCreatePartialExamAttempt(partialExam: PartialExam, li
   }
 
   const now = new Date().toISOString();
+  const turn = availability.activeTurn;
 
   try {
     const attemptPb = await createQuestionBankReadClient();
     return await attemptPb.collection('partial_exam_attempts').create<PartialExamAttempt>({
       partialExam: partialExam.id,
+      ...(turn ? { turn: turn.id } : {}),
       student: user.id,
       questionIds: questions.map((question) => question.id),
       answers: {},
@@ -438,9 +482,6 @@ export async function getActivePartialExamAttempt(partialExamId: string) {
 }
 
 export async function autoSubmitExpiredPartialExamAttempt(partialExam: PartialExam) {
-  const availability = getPartialExamAvailability(partialExam);
-  if (!availability.hasEnded) return null;
-
   const pb = await createServerClient();
   const user = pb.authStore.model;
 
@@ -450,6 +491,9 @@ export async function autoSubmitExpiredPartialExamAttempt(partialExam: PartialEx
 
   const attempt = await getActivePartialExamAttempt(partialExam.id);
   if (!attempt) return null;
+
+  const availability = getPartialExamAvailability(partialExam, new Date(), attempt.turn);
+  if (!availability.hasEnded) return null;
 
   const existingSimulation = await getLatestStudentPartialExamSimulation(partialExam.id);
   if (existingSimulation) return existingSimulation;
@@ -490,6 +534,7 @@ export async function autoSubmitExpiredPartialExamAttempt(partialExam: PartialEx
     const attemptPb = await createQuestionBankReadClient();
     const simulation = await attemptPb.collection('partial_exam_simulations').create<PartialExamSimulation>({
       partialExam: partialExam.id,
+      ...(attempt.turn ? { turn: attempt.turn } : {}),
       student: user.id,
       score,
       totalQuestions: questionIds.length,
@@ -527,7 +572,7 @@ export async function getPartialExamSimulationReport(partialExamId: string) {
   const simulations = await pb.collection('partial_exam_simulations').getFullList<PartialExamSimulation>({
     filter: `partialExam = "${partialExamId}"`,
     sort: '-completedAt',
-    expand: 'student',
+    expand: 'student,turn',
   });
 
   const latestSimulationByStudent = new Map<string, PartialExamSimulation>();

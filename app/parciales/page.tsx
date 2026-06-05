@@ -62,14 +62,24 @@ export default async function PartialExamsPage() {
                         <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200">
                           {statusLabel}
                         </span>
-                        {partialExam.startsAt && (
-                          <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                            Inicio: <FormattedDate date={partialExam.startsAt} locale="es-AR" showTime={true} />
+                        {availability.activeTurn && (
+                          <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/50 dark:text-blue-200">
+                            {availability.activeTurn.name}
                           </span>
                         )}
-                        {partialExam.endsAt && (
+                        {!availability.activeTurn && availability.nextTurn && (
                           <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                            Fin: <FormattedDate date={partialExam.endsAt} locale="es-AR" showTime={true} />
+                            Proximo: {availability.nextTurn.name}
+                          </span>
+                        )}
+                        {availability.startsAtMs && (
+                          <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                            Inicio: <FormattedDate date={new Date(availability.startsAtMs).toISOString()} locale="es-AR" showTime={true} />
+                          </span>
+                        )}
+                        {availability.endsAtMs && (
+                          <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                            Fin: <FormattedDate date={new Date(availability.endsAtMs).toISOString()} locale="es-AR" showTime={true} />
                           </span>
                         )}
                       </div>

@@ -15,12 +15,51 @@ interface PartialExamFormProps {
 
 const statuses: PartialExamStatus[] = ["Planificado", "Publicado", "Finalizado"];
 
+type TurnFormRow = {
+  key: string;
+  id: string;
+  name: string;
+  startsAt: string;
+  endsAt: string;
+};
+
 export default function PartialExamForm({ partialExam, questionBanks = [], onClose }: PartialExamFormProps) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [description, setDescription] = useState(partialExam?.description || "");
   const [status, setStatus] = useState<PartialExamStatus>(partialExam?.status || "Planificado");
+  const getLocalDateTime = (isoDate: string) => {
+    if (!isoDate) return "";
+    const date = new Date(isoDate);
+    const offset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - offset * 60 * 1000);
+    return localDate.toISOString().slice(0, 16);
+  };
+  const initialTurns: TurnFormRow[] = partialExam?.turns?.length
+    ? partialExam.turns.map((turn) => ({
+        key: turn.id,
+        id: turn.id,
+        name: turn.name,
+        startsAt: getLocalDateTime(turn.startsAt),
+        endsAt: getLocalDateTime(turn.endsAt),
+      }))
+    : partialExam?.startsAt || partialExam?.endsAt
+      ? [{
+          key: "legacy-turn",
+          id: "",
+          name: "Turno principal",
+          startsAt: partialExam.startsAt ? getLocalDateTime(partialExam.startsAt) : "",
+          endsAt: partialExam.endsAt ? getLocalDateTime(partialExam.endsAt) : "",
+        }]
+      : [{
+          key: "new-turn-0",
+          id: "",
+          name: "Turno 1",
+          startsAt: "",
+          endsAt: "",
+        }];
+  const [turns, setTurns] = useState<TurnFormRow[]>(initialTurns);
   const selectedQuestionBanks = new Set(
     Array.isArray(partialExam?.questionBanks)
       ? partialExam.questionBanks
@@ -29,26 +68,48 @@ export default function PartialExamForm({ partialExam, questionBanks = [], onClo
         : []
   );
 
-  const getLocalDateTime = (isoDate: string) => {
-    if (!isoDate) return "";
-    const date = new Date(isoDate);
-    const offset = date.getTimezoneOffset();
-    const localDate = new Date(date.getTime() - offset * 60 * 1000);
-    return localDate.toISOString().slice(0, 16);
-  };
+  function updateTurn(index: number, field: keyof Omit<TurnFormRow, "key" | "id">, value: string) {
+    setTurns((currentTurns) =>
+      currentTurns.map((turn, turnIndex) =>
+        turnIndex === index
+          ? { ...turn, [field]: value }
+          : turn
+      )
+    );
+  }
+
+  function addTurn() {
+    setTurns((currentTurns) => [
+      ...currentTurns,
+      {
+        key: `new-turn-${Date.now()}`,
+        id: "",
+        name: `Turno ${currentTurns.length + 1}`,
+        startsAt: "",
+        endsAt: "",
+      },
+    ]);
+  }
+
+  function removeTurn(index: number) {
+    setTurns((currentTurns) => currentTurns.filter((_, turnIndex) => turnIndex !== index));
+  }
 
   async function handleSubmit(formData: FormData) {
     setLoading(true);
     setError(null);
 
-    const startsAt = formData.get("startsAt") as string;
-    const endsAt = formData.get("endsAt") as string;
-    if (startsAt) {
-      formData.set("startsAt", new Date(startsAt).toISOString());
+    const turnStartsAt = formData.getAll("turnStartsAt").map(String);
+    const turnEndsAt = formData.getAll("turnEndsAt").map(String);
+    formData.delete("turnStartsAt");
+    formData.delete("turnEndsAt");
+    for (const value of turnStartsAt) {
+      formData.append("turnStartsAt", value ? new Date(value).toISOString() : "");
     }
-    if (endsAt) {
-      formData.set("endsAt", new Date(endsAt).toISOString());
+    for (const value of turnEndsAt) {
+      formData.append("turnEndsAt", value ? new Date(value).toISOString() : "");
     }
+
     formData.set("description", description);
     formData.set("status", status);
     if (formData.getAll("questionBanks").length === 0) {
@@ -99,31 +160,72 @@ export default function PartialExamForm({ partialExam, questionBanks = [], onClo
           />
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <div>
-            <label htmlFor="startsAt" className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Fecha y hora de inicio
-            </label>
-            <input
-              type="datetime-local"
-              name="startsAt"
-              id="startsAt"
-              defaultValue={partialExam?.startsAt ? getLocalDateTime(partialExam.startsAt) : ""}
-              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
-            />
+        <div>
+          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <span className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">Turnos</span>
+            <button
+              type="button"
+              onClick={addTurn}
+              className="inline-flex justify-center rounded-md border border-blue-300 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 dark:border-blue-900 dark:text-blue-200 dark:hover:bg-blue-950/40"
+            >
+              Agregar turno
+            </button>
           </div>
-
-          <div>
-            <label htmlFor="endsAt" className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-              Fecha y hora de finalizacion
-            </label>
-            <input
-              type="datetime-local"
-              name="endsAt"
-              id="endsAt"
-              defaultValue={partialExam?.endsAt ? getLocalDateTime(partialExam.endsAt) : ""}
-              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
-            />
+          <div className="space-y-3">
+            {turns.map((turn, index) => (
+              <div key={turn.key} className="rounded-md border border-zinc-300 p-3 dark:border-zinc-700">
+                <input type="hidden" name="turnIds" value={turn.id} />
+                <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      Nombre del turno
+                    </label>
+                    <input
+                      type="text"
+                      name="turnNames"
+                      value={turn.name}
+                      onChange={(event) => updateTurn(index, "name", event.target.value)}
+                      required
+                      className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      Inicio
+                    </label>
+                    <input
+                      type="datetime-local"
+                      name="turnStartsAt"
+                      value={turn.startsAt}
+                      onChange={(event) => updateTurn(index, "startsAt", event.target.value)}
+                      required
+                      className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                      Finalizacion
+                    </label>
+                    <input
+                      type="datetime-local"
+                      name="turnEndsAt"
+                      value={turn.endsAt}
+                      onChange={(event) => updateTurn(index, "endsAt", event.target.value)}
+                      required
+                      className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeTurn(index)}
+                    disabled={turns.length === 1}
+                    className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    Quitar
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

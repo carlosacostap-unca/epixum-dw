@@ -16,6 +16,7 @@ import {
   PartialExamSimulation,
   PartialExamSimulationFinishReason,
   PartialExamStatus,
+  PartialExamTurn,
 } from "@/types";
 import PocketBase from "pocketbase";
 import { getDeliveryLimitDate } from "./delivery-deadlines";
@@ -30,6 +31,13 @@ type PartialExamPayload = {
   startsAt?: string;
   endsAt?: string;
   questionBanks?: string[];
+};
+
+type PartialExamTurnPayload = {
+  id?: string;
+  name: string;
+  startsAt: string;
+  endsAt: string;
 };
 
 export async function ensureCorsConfigured() {
@@ -92,6 +100,90 @@ async function validatePartialExamBanks(pb: PocketBase, bankIds: string[]) {
   }
 
   return null;
+}
+
+function getPartialExamTurnPayloads(formData: FormData) {
+  const ids = formData.getAll('turnIds').map(String);
+  const names = formData.getAll('turnNames').map(String);
+  const startsAtValues = formData.getAll('turnStartsAt').map(String);
+  const endsAtValues = formData.getAll('turnEndsAt').map(String);
+  const rowCount = Math.max(names.length, startsAtValues.length, endsAtValues.length);
+  const turns: PartialExamTurnPayload[] = [];
+
+  for (let index = 0; index < rowCount; index += 1) {
+    const name = (names[index] || '').trim();
+    const startsAt = (startsAtValues[index] || '').trim();
+    const endsAt = (endsAtValues[index] || '').trim();
+    const id = (ids[index] || '').trim();
+
+    if (!name && !startsAt && !endsAt) continue;
+
+    if (!name || !startsAt || !endsAt) {
+      throw new Error('Completa el nombre, inicio y finalizacion de cada turno.');
+    }
+
+    if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
+      throw new Error('La fecha de finalizacion de cada turno debe ser posterior al inicio.');
+    }
+
+    turns.push({
+      ...(id ? { id } : {}),
+      name,
+      startsAt: new Date(startsAt).toISOString(),
+      endsAt: new Date(endsAt).toISOString(),
+    });
+  }
+
+  if (turns.length === 0) {
+    throw new Error('Agrega al menos un turno para el parcial.');
+  }
+
+  return turns;
+}
+
+async function getPartialExamTurnsForAction(pb: PocketBase, partialExamId: string) {
+  try {
+    return await pb.collection('partial_exam_turns').getFullList<PartialExamTurn>({
+      filter: pb.filter('partialExam = {:partialExamId}', { partialExamId }),
+      sort: 'startsAt',
+    });
+  } catch (error) {
+    console.error('Failed to fetch partial exam turns:', error);
+    return [];
+  }
+}
+
+async function syncPartialExamTurns(pb: PocketBase, partialExamId: string, turns: PartialExamTurnPayload[]) {
+  const existingTurns = await getPartialExamTurnsForAction(pb, partialExamId);
+  const submittedIds = new Set(turns.map((turn) => turn.id).filter(Boolean));
+
+  for (const turn of turns) {
+    const data = {
+      partialExam: partialExamId,
+      name: turn.name,
+      startsAt: turn.startsAt,
+      endsAt: turn.endsAt,
+    };
+
+    if (turn.id && existingTurns.some((existingTurn) => existingTurn.id === turn.id)) {
+      await pb.collection('partial_exam_turns').update(turn.id, data);
+    } else {
+      await pb.collection('partial_exam_turns').create(data);
+    }
+  }
+
+  for (const existingTurn of existingTurns) {
+    if (!submittedIds.has(existingTurn.id)) {
+      await pb.collection('partial_exam_turns').delete(existingTurn.id);
+    }
+  }
+}
+
+function withTurns(partialExam: PartialExam, turns: PartialExamTurn[]) {
+  return {
+    ...partialExam,
+    turns,
+  };
 }
 
 function isAdministrativeApprovalAssignment(assignment: Pick<Assignment, 'title'>) {
@@ -471,8 +563,6 @@ export async function createPartialExam(formData: FormData) {
 
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
-  const startsAt = formData.get('startsAt') as string;
-  const endsAt = formData.get('endsAt') as string;
   const topics = formData.get('topics') as string;
   const status = (formData.get('status') as PartialExamStatus) || 'Planificado';
   const questionBanks = formData.getAll('questionBanks').map(String).filter(Boolean);
@@ -481,11 +571,8 @@ export async function createPartialExam(formData: FormData) {
      return { success: false, error: 'El titulo es obligatorio' };
   }
 
-  if (startsAt && endsAt && new Date(endsAt).getTime() < new Date(startsAt).getTime()) {
-    return { success: false, error: 'La fecha de finalizacion debe ser posterior al inicio' };
-  }
-
   try {
+    const turns = getPartialExamTurnPayloads(formData);
     const bankValidationError = await validatePartialExamBanks(pb, questionBanks);
     if (bankValidationError) {
       return { success: false, error: bankValidationError };
@@ -497,17 +584,18 @@ export async function createPartialExam(formData: FormData) {
       topics,
       status,
     };
-    if (startsAt) data.startsAt = new Date(startsAt).toISOString();
-    if (endsAt) data.endsAt = new Date(endsAt).toISOString();
+    data.startsAt = turns[0].startsAt;
+    data.endsAt = turns[0].endsAt;
     data.questionBanks = questionBanks;
 
-    await pb.collection('partial_exams').create(data);
+    const partialExam = await pb.collection('partial_exams').create<PartialExam>(data);
+    await syncPartialExamTurns(pb, partialExam.id, turns);
     revalidatePath('/');
     revalidatePath('/parciales');
     return { success: true };
   } catch (error) {
     console.error('Failed to create partial exam:', error);
-    return { success: false, error: 'No se pudo crear el parcial' };
+    return { success: false, error: error instanceof Error ? error.message : 'No se pudo crear el parcial' };
   }
 }
 
@@ -521,17 +609,12 @@ export async function updatePartialExam(partialExamId: string, formData: FormDat
 
   const title = formData.get('title') as string;
   const description = formData.get('description') as string;
-  const startsAt = formData.get('startsAt') as string;
-  const endsAt = formData.get('endsAt') as string;
   const topics = formData.get('topics') as string;
   const status = (formData.get('status') as PartialExamStatus) || 'Planificado';
   const questionBanks = formData.getAll('questionBanks').map(String).filter(Boolean);
 
-  if (startsAt && endsAt && new Date(endsAt).getTime() < new Date(startsAt).getTime()) {
-    return { success: false, error: 'La fecha de finalizacion debe ser posterior al inicio' };
-  }
-
   try {
+    const turns = getPartialExamTurnPayloads(formData);
     const bankValidationError = await validatePartialExamBanks(pb, questionBanks);
     if (bankValidationError) {
       return { success: false, error: bankValidationError };
@@ -543,11 +626,12 @@ export async function updatePartialExam(partialExamId: string, formData: FormDat
       topics,
       status,
     };
-    data.startsAt = startsAt ? new Date(startsAt).toISOString() : "";
-    data.endsAt = endsAt ? new Date(endsAt).toISOString() : "";
+    data.startsAt = turns[0].startsAt;
+    data.endsAt = turns[0].endsAt;
     data.questionBanks = questionBanks;
 
     await pb.collection('partial_exams').update(partialExamId, data);
+    await syncPartialExamTurns(pb, partialExamId, turns);
 
     revalidatePath('/');
     revalidatePath('/parciales');
@@ -555,7 +639,7 @@ export async function updatePartialExam(partialExamId: string, formData: FormDat
     return { success: true };
   } catch (error) {
     console.error('Failed to update partial exam:', error);
-    return { success: false, error: 'No se pudo actualizar el parcial' };
+    return { success: false, error: error instanceof Error ? error.message : 'No se pudo actualizar el parcial' };
   }
 }
 
@@ -607,7 +691,7 @@ export async function savePartialExamAttemptProgress(params: {
 
   try {
     const dataPb = await createAdministrativeClient(pb);
-    const [partialExam, attempt] = await Promise.all([
+    const [partialExamRecord, attempt] = await Promise.all([
       dataPb.collection('partial_exams').getOne<PartialExam>(partialExamId),
       dataPb.collection('partial_exam_attempts').getOne<PartialExamAttempt>(attemptId),
     ]);
@@ -616,7 +700,9 @@ export async function savePartialExamAttemptProgress(params: {
       return { success: false, error: 'El intento del parcial no esta disponible.' };
     }
 
-    const availability = getPartialExamAvailability(partialExam);
+    const turns = await getPartialExamTurnsForAction(dataPb, partialExamId);
+    const partialExam = withTurns(partialExamRecord, turns);
+    const availability = getPartialExamAvailability(partialExam, new Date(), attempt.turn);
     if (!availability.isOpen) {
       return { success: false, error: 'El parcial no esta abierto para guardar respuestas.' };
     }
@@ -661,7 +747,9 @@ export async function recordPartialExamSimulation(params: {
 
   try {
     const dataPb = await createAdministrativeClient(pb);
-    const partialExam = await dataPb.collection('partial_exams').getOne<PartialExam>(partialExamId);
+    const partialExamRecord = await dataPb.collection('partial_exams').getOne<PartialExam>(partialExamId);
+    const turns = await getPartialExamTurnsForAction(dataPb, partialExamId);
+    const partialExam = withTurns(partialExamRecord, turns);
     const availability = getPartialExamAvailability(partialExam);
     if (!availability.isPublished || !availability.hasStarted) {
       return { success: false, error: 'El parcial no esta disponible para estudiantes.' };
@@ -677,8 +765,13 @@ export async function recordPartialExamSimulation(params: {
       if (attempt.status === 'submitted') {
         return { success: true, totalQuestions: normalizeRelationIds(attempt.questionIds).length };
       }
-    } else if (availability.hasEnded) {
-      return { success: false, error: 'El parcial ya finalizo.' };
+
+      const attemptAvailability = getPartialExamAvailability(partialExam, new Date(), attempt.turn);
+      if (!attemptAvailability.hasStarted) {
+        return { success: false, error: 'El turno del parcial todavia no inicio.' };
+      }
+    } else if (!availability.isOpen) {
+      return { success: false, error: availability.hasEnded ? 'El parcial ya finalizo.' : 'No hay un turno abierto para enviar este parcial.' };
     }
 
     const previousSimulations = await dataPb.collection('partial_exam_simulations').getFullList<PartialExamSimulation>({
@@ -727,11 +820,13 @@ export async function recordPartialExamSimulation(params: {
       }
     }
 
-    const finishReason = availability.hasEnded ? 'time' : params.finishReason;
+    const attemptAvailability = attempt ? getPartialExamAvailability(partialExam, new Date(), attempt.turn) : availability;
+    const finishReason = attemptAvailability.hasEnded ? 'time' : params.finishReason;
     const completedAt = new Date().toISOString();
 
     const simulation = await dataPb.collection('partial_exam_simulations').create({
       partialExam: partialExamId,
+      ...(attempt?.turn ? { turn: attempt.turn } : availability.activeTurn ? { turn: availability.activeTurn.id } : {}),
       student: user.id,
       score,
       totalQuestions: questionIds.length,

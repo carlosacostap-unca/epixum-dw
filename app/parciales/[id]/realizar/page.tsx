@@ -41,6 +41,8 @@ export default async function TakePartialExamPage({ params }: { params: Promise<
   let initialAnswers: Record<string, string> = {};
 
   if (user.role === "estudiante") {
+    await autoSubmitExpiredPartialExamAttempt(partialExam);
+
     const submittedSimulation = await getLatestStudentPartialExamSimulation(partialExam.id);
     if (submittedSimulation) {
       return (
@@ -58,13 +60,14 @@ export default async function TakePartialExamPage({ params }: { params: Promise<
     }
 
     if (!availability.hasStarted) {
+      const startsAt = availability.nextTurn?.startsAt || partialExam.startsAt;
       return (
         <PartialExamShell partialExamTitle={partialExam.title} backHref="/parciales" backLabel="Volver a Parciales">
           <AvailabilityMessage
             title="El parcial todavia no esta habilitado"
             message={
-              partialExam.startsAt
-                ? `Podras iniciarlo desde ${new Date(partialExam.startsAt).toLocaleString("es-AR")}.`
+              startsAt
+                ? `Podras iniciarlo desde ${new Date(startsAt).toLocaleString("es-AR")}.`
                 : "El docente todavia no habilito la fecha de inicio."
             }
           />
@@ -73,7 +76,6 @@ export default async function TakePartialExamPage({ params }: { params: Promise<
     }
 
     if (availability.hasEnded) {
-      await autoSubmitExpiredPartialExamAttempt(partialExam);
       return (
         <PartialExamShell partialExamTitle={partialExam.title} backHref="/parciales" backLabel="Volver a Parciales">
           <AvailabilityMessage
@@ -84,14 +86,38 @@ export default async function TakePartialExamPage({ params }: { params: Promise<
       );
     }
 
+    if (!availability.isOpen) {
+      const nextStartsAt = availability.nextTurn?.startsAt;
+      return (
+        <PartialExamShell partialExamTitle={partialExam.title} backHref="/parciales" backLabel="Volver a Parciales">
+          <AvailabilityMessage
+            title="No hay un turno abierto"
+            message={
+              nextStartsAt
+                ? `El proximo turno inicia el ${new Date(nextStartsAt).toLocaleString("es-AR")}.`
+                : "El docente todavia no habilito un turno para rendir este parcial."
+            }
+          />
+        </PartialExamShell>
+      );
+    }
+
     const attempt = await getOrCreatePartialExamAttempt(partialExam, PARTIAL_EXAM_QUESTION_COUNT);
     if (attempt) {
       attemptId = attempt.id;
       initialAnswers = attempt.answers || {};
       questions = await getPartialExamSimulationQuestions(partialExam, PARTIAL_EXAM_QUESTION_COUNT, attempt.questionIds);
+      const attemptTurn = partialExam.turns?.find((turn) => turn.id === attempt.turn);
+      if (attemptTurn) {
+        partialExam.startsAt = attemptTurn.startsAt;
+        partialExam.endsAt = attemptTurn.endsAt;
+      }
     } else {
       questions = [];
     }
+  } else if (availability.activeTurn) {
+    partialExam.startsAt = availability.activeTurn.startsAt;
+    partialExam.endsAt = availability.activeTurn.endsAt;
   }
 
   return (
