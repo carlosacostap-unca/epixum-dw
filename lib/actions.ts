@@ -772,7 +772,8 @@ export async function setPartialExamScoreVisibility(simulationId: string, visibl
   }
 
   try {
-    const simulation = await pb.collection('partial_exam_simulations').update<PartialExamSimulation>(simulationId, {
+    const adminPb = await createAdministrativeClient(pb);
+    const simulation = await adminPb.collection('partial_exam_simulations').update<PartialExamSimulation>(simulationId, {
       scoreVisible: visible,
     });
 
