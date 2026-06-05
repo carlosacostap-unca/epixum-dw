@@ -318,7 +318,7 @@ export async function getOrCreatePartialExamAttempt(partialExam: PartialExam, li
         partialExamId: partialExam.id,
         studentId: user.id,
       }),
-      sort: '-updated',
+      sort: '-lastSavedAt',
     });
 
     const activeAttempt = activeAttempts.find((attempt) => normalizeRelationIds(attempt.questionIds).length === limit);
@@ -427,7 +427,7 @@ export async function getActivePartialExamAttempt(partialExamId: string) {
         partialExamId,
         studentId: user.id,
       }),
-      sort: '-updated',
+      sort: '-lastSavedAt',
     });
 
     return activeAttempts[0] || null;
