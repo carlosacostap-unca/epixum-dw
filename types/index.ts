@@ -23,6 +23,46 @@ export interface User extends BaseModel {
   role: UserRole;
 }
 
+export interface Team extends BaseModel {
+  name: string;
+  description?: string;
+  expand?: {
+    members?: TeamMember[];
+  };
+}
+
+export interface TeamMember extends BaseModel {
+  team: string;
+  student: string;
+  expand?: {
+    team?: Team;
+    student?: User;
+  };
+}
+
+export type TeamValidationStatus =
+  | 'correct'
+  | 'wrong_team'
+  | 'missing_member'
+  | 'extra_member'
+  | 'no_team'
+  | 'other';
+
+export interface TeamValidationResponse extends BaseModel {
+  student: string;
+  team?: string;
+  status: TeamValidationStatus;
+  details?: string;
+  submittedAt: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+  expand?: {
+    student?: User;
+    team?: Team;
+    resolvedBy?: User;
+  };
+}
+
 export interface Link extends BaseModel {
   title: string;
   url: string;

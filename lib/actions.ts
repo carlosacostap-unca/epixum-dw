@@ -17,6 +17,8 @@ import {
   PartialExamSimulationFinishReason,
   PartialExamStatus,
   PartialExamTurn,
+  TeamMember,
+  TeamValidationStatus,
 } from "@/types";
 import PocketBase from "pocketbase";
 import { getDeliveryLimitDate } from "./delivery-deadlines";
@@ -119,11 +121,11 @@ function getPartialExamTurnPayloads(formData: FormData) {
     if (!name && !startsAt && !endsAt) continue;
 
     if (!name || !startsAt || !endsAt) {
-      throw new Error('Completa el nombre, inicio y finalizacion de cada turno.');
+      throw new Error('Completa el nombre, inicio y finalización de cada turno.');
     }
 
     if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
-      throw new Error('La fecha de finalizacion de cada turno debe ser posterior al inicio.');
+      throw new Error('La fecha de finalización de cada turno debe ser posterior al inicio.');
     }
 
     turns.push({
@@ -349,6 +351,240 @@ export async function updateUserRole(userId: string, role: string) {
   } catch (error) {
     console.error('Failed to update role:', error);
     return { success: false, error: 'Failed to update role' };
+  }
+}
+
+function canManageTeams(user: { role?: unknown } | null | undefined) {
+  return user?.role === 'docente' || user?.role === 'admin';
+}
+
+function normalizeTeamPayload(formData: FormData) {
+  const name = (formData.get('name') as string | null)?.trim() || '';
+  const description = (formData.get('description') as string | null)?.trim() || '';
+
+  return { name, description };
+}
+
+export async function createTeam(formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { role?: unknown } | null;
+
+  if (!canManageTeams(user)) {
+    return { success: false, error: 'Solo los docentes pueden gestionar equipos.' };
+  }
+
+  const data = normalizeTeamPayload(formData);
+  if (!data.name) {
+    return { success: false, error: 'El nombre del equipo es obligatorio.' };
+  }
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    await dataPb.collection('teams').create(data);
+    revalidatePath('/');
+    revalidatePath('/equipos');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to create team:', error);
+    return { success: false, error: 'No se pudo crear el equipo.' };
+  }
+}
+
+export async function updateTeam(teamId: string, formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { role?: unknown } | null;
+
+  if (!canManageTeams(user)) {
+    return { success: false, error: 'Solo los docentes pueden gestionar equipos.' };
+  }
+
+  const data = normalizeTeamPayload(formData);
+  if (!data.name) {
+    return { success: false, error: 'El nombre del equipo es obligatorio.' };
+  }
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    await dataPb.collection('teams').update(teamId, data);
+    revalidatePath('/equipos');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update team:', error);
+    return { success: false, error: 'No se pudo actualizar el equipo.' };
+  }
+}
+
+export async function deleteTeam(teamId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { role?: unknown } | null;
+
+  if (!canManageTeams(user)) {
+    return { success: false, error: 'Solo los docentes pueden gestionar equipos.' };
+  }
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    const memberships = await dataPb.collection('team_members').getFullList({
+      filter: dataPb.filter('team = {:teamId}', { teamId }),
+    });
+
+    for (const membership of memberships) {
+      await dataPb.collection('team_members').delete(membership.id);
+    }
+
+    await dataPb.collection('teams').delete(teamId);
+    revalidatePath('/');
+    revalidatePath('/equipos');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete team:', error);
+    return { success: false, error: 'No se pudo eliminar el equipo.' };
+  }
+}
+
+export async function assignStudentToTeam(studentId: string, teamId: string | null) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { role?: unknown } | null;
+
+  if (!canManageTeams(user)) {
+    return { success: false, error: 'Solo los docentes pueden asignar estudiantes a equipos.' };
+  }
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    const student = await dataPb.collection('users').getOne(studentId, {
+      fields: 'id,role',
+    });
+
+    if (student.role !== 'estudiante') {
+      return { success: false, error: 'Solo se pueden asignar estudiantes.' };
+    }
+
+    const currentMemberships = await dataPb.collection('team_members').getFullList({
+      filter: dataPb.filter('student = {:studentId}', { studentId }),
+    });
+
+    if (!teamId) {
+      for (const membership of currentMemberships) {
+        await dataPb.collection('team_members').delete(membership.id);
+      }
+      revalidatePath('/equipos');
+      revalidatePath(`/students/${studentId}`);
+      return { success: true };
+    }
+
+    await dataPb.collection('teams').getOne(teamId, { fields: 'id' });
+
+    const [currentMembership, ...duplicateMemberships] = currentMemberships;
+    for (const membership of duplicateMemberships) {
+      await dataPb.collection('team_members').delete(membership.id);
+    }
+
+    if (currentMembership) {
+      if (currentMembership.team !== teamId) {
+        await dataPb.collection('team_members').update(currentMembership.id, {
+          team: teamId,
+        });
+      }
+    } else {
+      await dataPb.collection('team_members').create({
+        team: teamId,
+        student: studentId,
+      });
+    }
+
+    revalidatePath('/equipos');
+    revalidatePath(`/students/${studentId}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to assign student to team:', error);
+    return { success: false, error: 'No se pudo actualizar la asignación del estudiante.' };
+  }
+}
+
+const teamValidationStatuses = new Set<TeamValidationStatus>([
+  'correct',
+  'wrong_team',
+  'missing_member',
+  'extra_member',
+  'no_team',
+  'other',
+]);
+
+export async function submitTeamValidationResponse(formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { id?: string; role?: unknown } | null;
+
+  if (!user?.id || user.role !== 'estudiante') {
+    return { success: false, error: 'Solo los estudiantes pueden validar su equipo.' };
+  }
+
+  const status = String(formData.get('status') || '') as TeamValidationStatus;
+  const details = String(formData.get('details') || '').trim();
+
+  if (!teamValidationStatuses.has(status)) {
+    return { success: false, error: 'Selecciona una opción válida.' };
+  }
+
+  if (status !== 'correct' && !details) {
+    return { success: false, error: 'Describe brevemente que hay que corregir.' };
+  }
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    const memberships = await dataPb.collection('team_members').getFullList<TeamMember>({
+      filter: dataPb.filter('student = {:studentId}', { studentId: user.id }),
+    });
+    const currentTeamId = memberships[0]?.team || '';
+    const existingResponses = await dataPb.collection('team_validation_responses').getFullList({
+      filter: dataPb.filter('student = {:studentId}', { studentId: user.id }),
+    });
+    const payload = {
+      student: user.id,
+      team: currentTeamId || null,
+      status,
+      details,
+      submittedAt: new Date().toISOString(),
+      resolvedAt: null,
+      resolvedBy: null,
+    };
+
+    if (existingResponses[0]) {
+      await dataPb.collection('team_validation_responses').update(existingResponses[0].id, payload);
+    } else {
+      await dataPb.collection('team_validation_responses').create(payload);
+    }
+
+    revalidatePath('/');
+    revalidatePath('/equipos');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to submit team validation response:', error);
+    return { success: false, error: 'No se pudo guardar la respuesta.' };
+  }
+}
+
+export async function resolveTeamValidationResponse(responseId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { id?: string; role?: unknown } | null;
+
+  if (!user?.id || !canManageTeams(user)) {
+    return { success: false, error: 'Solo los docentes pueden marcar solicitudes como resueltas.' };
+  }
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    await dataPb.collection('team_validation_responses').update(responseId, {
+      resolvedAt: new Date().toISOString(),
+      resolvedBy: user.id,
+    });
+
+    revalidatePath('/');
+    revalidatePath('/equipos');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to resolve team validation response:', error);
+    return { success: false, error: 'No se pudo marcar la solicitud como resuelta.' };
   }
 }
 
@@ -768,7 +1004,7 @@ export async function recordPartialExamSimulation(params: {
 
       const attemptAvailability = getPartialExamAvailability(partialExam, new Date(), attempt.turn);
       if (!attemptAvailability.hasStarted) {
-        return { success: false, error: 'El turno del parcial todavia no inicio.' };
+        return { success: false, error: 'El turno del parcial todavía no inició.' };
       }
     } else if (!availability.isOpen) {
       return { success: false, error: availability.hasEnded ? 'El parcial ya finalizo.' : 'No hay un turno abierto para enviar este parcial.' };
@@ -1674,7 +1910,7 @@ export async function approveAssignmentForAllStudents(assignmentId: string) {
     const assignment = await adminPb.collection('assignments').getOne<Assignment>(assignmentId);
 
     if (!isAdministrativeApprovalAssignment(assignment)) {
-      return { success: false, error: 'La aprobacion administrativa solo esta habilitada para Cuestionario 1.' };
+      return { success: false, error: 'La aprobación administrativa solo está habilitada para Cuestionario 1.' };
     }
 
     const students = await adminPb.collection('users').getFullList({
@@ -1786,7 +2022,7 @@ export async function approveAssignmentForStudent(assignmentId: string, studentI
     const assignment = await adminPb.collection('assignments').getOne<Assignment>(assignmentId);
 
     if (!isAdministrativeApprovalAssignment(assignment)) {
-      return { success: false, error: 'La aprobacion administrativa solo esta habilitada para Cuestionario 1.' };
+      return { success: false, error: 'La aprobación administrativa solo está habilitada para Cuestionario 1.' };
     }
 
     const student = await adminPb.collection('users').getOne(studentId);
@@ -1871,7 +2107,7 @@ export async function unapproveAssignmentForStudent(assignmentId: string, studen
     const assignment = await adminPb.collection('assignments').getOne<Assignment>(assignmentId);
 
     if (!isAdministrativeApprovalAssignment(assignment)) {
-      return { success: false, error: 'La aprobacion administrativa solo esta habilitada para Cuestionario 1.' };
+      return { success: false, error: 'La aprobación administrativa solo está habilitada para Cuestionario 1.' };
     }
 
     const student = await adminPb.collection('users').getOne(studentId);
@@ -1909,7 +2145,7 @@ export async function unapproveAssignmentForStudent(assignmentId: string, studen
     return { success: true, removedFeedbacks: approvedFeedbacks.length };
   } catch (error) {
     console.error('Failed to unapprove assignment for student:', error);
-    return { success: false, error: 'No se pudo desmarcar la aprobacion del estudiante.' };
+    return { success: false, error: 'No se pudo desmarcar la aprobación del estudiante.' };
   }
 }
 

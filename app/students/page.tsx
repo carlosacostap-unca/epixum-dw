@@ -1,4 +1,4 @@
-import { getStudents } from "@/lib/data";
+import { getStudents, getTeamMembers, getTeams } from "@/lib/data";
 import { getCurrentUser } from "@/lib/pocketbase-server";
 import { User } from "@/types";
 import { redirect } from "next/navigation";
@@ -12,7 +12,9 @@ export default async function StudentsPage() {
     redirect('/');
   }
 
-  const students = await getStudents();
+  const [students, teams, teamMembers] = await Promise.all([getStudents(), getTeams(), getTeamMembers()]);
+  const teamNameById = new Map(teams.map((team) => [team.id, team.name]));
+  const teamByStudent = new Map(teamMembers.map((member) => [member.student, teamNameById.get(member.team) || "Equipo asignado"]));
 
   return (
     <div className="container mx-auto p-8 min-h-screen">
@@ -32,6 +34,7 @@ export default async function StudentsPage() {
                 <th className="px-6 py-4">Email</th>
                 <th className="px-6 py-4">DNI</th>
                 <th className="px-6 py-4">Matrícula</th>
+                <th className="px-6 py-4">Equipo</th>
                 <th className="px-6 py-4">Diseño Web</th>
               </tr>
             </thead>
@@ -60,6 +63,7 @@ export default async function StudentsPage() {
                   <td className="px-6 py-4 relative z-0">{student.email}</td>
                   <td className="px-6 py-4 relative z-0">{student.dni || "-"}</td>
                   <td className="px-6 py-4 relative z-0">{student.enrollmentId || "-"}</td>
+                  <td className="px-6 py-4 relative z-0">{teamByStudent.get(student.id) || "Sin equipo"}</td>
                   <td className="px-6 py-4 relative z-0">
                     {student.approvedWebDesignModule ? (
                       <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
@@ -75,7 +79,7 @@ export default async function StudentsPage() {
               ))}
               {students.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-zinc-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-zinc-500">
                     No hay estudiantes registrados en el curso.
                   </td>
                 </tr>

@@ -1,9 +1,17 @@
-import { getAllClasses, getUserDeliveries, getAllAssignments } from "@/lib/data";
+import {
+    getAllClasses,
+    getUserDeliveries,
+    getAllAssignments,
+    getStudentTeam,
+    getPublishedStudentPartialExams,
+    getStudentPartialExamResults,
+} from "@/lib/data";
 import { Class } from "@/types";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/pocketbase-server";
 import FormattedDate from "@/components/FormattedDate";
 import StudentGradesSummary from "@/components/StudentGradesSummary";
+import StudentTeamValidationForm from "@/components/StudentTeamValidationForm";
 
 export const dynamic = 'force-dynamic';
 
@@ -12,8 +20,15 @@ export default async function Home() {
 
   // 1. Student View (Navigation Cards)
   if (user && user.role === 'estudiante') {
-    const userDeliveries = await getUserDeliveries(user.id);
-    const assignments = await getAllAssignments();
+    const [userDeliveries, assignments, studentTeam, partialExams] = await Promise.all([
+        getUserDeliveries(user.id),
+        getAllAssignments(),
+        getStudentTeam(user.id),
+        getPublishedStudentPartialExams(),
+    ]);
+    const partialExamResults = await getStudentPartialExamResults(partialExams.map((partialExam) => partialExam.id));
+    const teammates = studentTeam?.members.filter((member) => member.id !== user.id) || [];
+    const hasAssignedTeam = Boolean(studentTeam?.team);
 
     return (
         <div className="container mx-auto p-8 min-h-screen">
@@ -23,24 +38,62 @@ export default async function Home() {
                 </h1>
             </header>
 
-            <section className="max-w-4xl mx-auto mb-8 rounded-xl border border-amber-300 bg-amber-50 p-5 text-amber-950 shadow-sm dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+
+            <section className="max-w-4xl mx-auto mb-8 rounded-xl border border-blue-200 bg-blue-50 p-5 text-blue-950 shadow-sm dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-100">
                 <div className="flex gap-4">
-                    <div className="mt-1 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-200">
+                    <div className="mt-1 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
                         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.86 6.86 0 016 18.75l.001-.032m11.999 0A5.971 5.971 0 0012 13.5a5.971 5.971 0 00-6 5.218m12 0a8.962 8.962 0 01-6 2.282 8.962 8.962 0 01-6-2.282M12 13.5a3 3 0 100-6 3 3 0 000 6z" />
                         </svg>
                     </div>
                     <div>
-                        <h2 className="text-lg font-bold">Aviso importante sobre entregas</h2>
+                        <h2 className="text-lg font-bold">Revisión del proyecto final</h2>
                         <p className="mt-2 leading-relaxed">
-                            Se habilitaron las entregas de todos los trabajos prácticos y desafíos hasta el <strong>17 de mayo de 2026 a las 23:59 horas</strong>.
-                            Luego de esa fecha no se permitirán enviar trabajos prácticos vencidos, sin excepción.
+                            Nos estamos preparando para la revisión del proyecto final. Todo alumno debe pertenecer a un equipo y cada equipo debe solicitar un turno para realizar su presentación.
                         </p>
+                        <div className="mt-4 rounded-lg border border-blue-200 bg-white/70 px-4 py-3 text-sm dark:border-blue-800 dark:bg-blue-950/50">
+                            <span className="font-semibold">Tu equipo: </span>
+                            {studentTeam?.team ? (
+                                <span>{studentTeam.team.name}</span>
+                            ) : (
+                                <span>Sin equipo asignado todavía. Coordiná tu asignación con el docente.</span>
+                            )}
+                        </div>
+                        {studentTeam?.team && (
+                            <div className="mt-4">
+                                <h3 className="text-sm font-semibold uppercase tracking-wide text-blue-800 dark:text-blue-200">
+                                    Compañeros de equipo
+                                </h3>
+                                {teammates.length > 0 ? (
+                                    <ul className="mt-2 divide-y divide-blue-100 rounded-lg border border-blue-200 bg-white/70 text-sm dark:divide-blue-900 dark:border-blue-800 dark:bg-blue-950/50">
+                                        {teammates.map((teammate) => (
+                                            <li key={teammate.id} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                                <span className="font-medium text-blue-950 dark:text-blue-100">
+                                                    {teammate.name || [teammate.lastName, teammate.firstName].filter(Boolean).join(", ") || "Sin nombre"}
+                                                </span>
+                                                <span className="text-blue-800 dark:text-blue-200">{teammate.email}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                ) : (
+                                    <p className="mt-2 rounded-lg border border-blue-200 bg-white/70 px-4 py-3 text-sm dark:border-blue-800 dark:bg-blue-950/50">
+                                        Todavía no hay otros compañeros asignados a este equipo.
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                        <StudentTeamValidationForm response={studentTeam?.validationResponse} hasTeam={hasAssignedTeam} />
                     </div>
                 </div>
             </section>
             
-            <StudentGradesSummary deliveries={userDeliveries} assignments={assignments} userEmail={user.email} />
+            <StudentGradesSummary
+                deliveries={userDeliveries}
+                assignments={assignments}
+                partialExams={partialExams}
+                partialExamResults={partialExamResults}
+                userEmail={user.email}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto mt-12">
                 <Link href="/course-info" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-purple-500 hover:shadow-md transition-all group">
@@ -72,7 +125,7 @@ export default async function Home() {
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M6 21h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2zm3-8h6m-6 4h4" /></svg>
                     </div>
                     <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Parciales</h2>
-                    <p className="text-zinc-500 dark:text-zinc-400">Realiza parciales publicados por el docente.</p>
+                    <p className="text-zinc-500 dark:text-zinc-400">Realizá parciales publicados por el docente.</p>
                 </Link>
 
                 <Link href="/inquiries" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-orange-500 hover:shadow-md transition-all group">
@@ -115,6 +168,14 @@ export default async function Home() {
                   </div>
                   <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Estudiantes</h2>
                   <p className="text-zinc-500 dark:text-zinc-400">Consulta los datos de cursada y calificaciones de los estudiantes.</p>
+              </Link>
+
+              <Link href="/equipos" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-teal-500 hover:shadow-md transition-all group">
+                  <div className="w-12 h-12 bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.86 6.86 0 016 18.75l.001-.032m11.999 0A5.971 5.971 0 0012 13.5a5.971 5.971 0 00-6 5.218m12 0a8.962 8.962 0 01-6 2.282 8.962 8.962 0 01-6-2.282m0 0A5.971 5.971 0 0112 13.5m0 0a3 3 0 100-6 3 3 0 000 6zm6-3.75a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-12 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" /></svg>
+                  </div>
+                  <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Equipos</h2>
+                  <p className="text-zinc-500 dark:text-zinc-400">Crea grupos de trabajo y asigna estudiantes.</p>
               </Link>
               
               <Link href="/course-info" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-purple-500 hover:shadow-md transition-all group">

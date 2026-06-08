@@ -187,7 +187,48 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - **Update Rule**: `@request.auth.role = "estudiante" && student = @request.auth.id`
     - **Delete Rule**: Disabled
 
-## 5. Colección: `deliveries` (Entregas de TP)
+## 5. Coleccion: `teams` (Equipos)
+- **Name**: `teams`
+- **Fields**:
+    - `name`: Text (Required, nombre del equipo)
+    - `description`: Text (Optional, descripcion interna del equipo)
+- **API Rules**:
+    - **List/View/Create/Update/Delete Rule**: `@request.auth.role = "docente" || @request.auth.role = "admin"`
+- **Indexes**:
+    - `idx_teams_name`: nombre unico para evitar equipos duplicados.
+
+## 5.1. Coleccion: `team_members` (Asignacion de estudiantes a equipos)
+- **Name**: `team_members`
+- **Fields**:
+    - `team`: Relation (Single, Required) -> Collection: `teams`
+    - `student`: Relation (Single, Required) -> Collection: `users`
+- **API Rules**:
+    - **List/View/Create/Update/Delete Rule**: `@request.auth.role = "docente" || @request.auth.role = "admin"`
+- **Indexes**:
+    - `idx_team_members_student`: estudiante unico, garantiza que cada estudiante este en cero o un equipo.
+    - `idx_team_members_team`: indice para listar integrantes por equipo.
+
+## 5.2. Coleccion: `team_validation_responses` (Validacion de equipos por estudiantes)
+- **Name**: `team_validation_responses`
+- **Fields**:
+    - `student`: Relation (Single, Required) -> Collection: `users`
+    - `team`: Relation (Single, Optional) -> Collection: `teams`
+    - `status`: Select (Required): `correct`, `wrong_team`, `missing_member`, `extra_member`, `no_team`, `other`
+    - `details`: Text (Optional, detalle escrito por el alumno para el docente)
+    - `submittedAt`: Date (Required, fecha de envio o ultima actualizacion)
+    - `resolvedAt`: Date (Optional, fecha en que el docente marco la solicitud como resuelta)
+    - `resolvedBy`: Relation (Single, Optional) -> Collection: `users`
+- **API Rules**:
+    - **List/View Rule**: `@request.auth.role = "docente" || @request.auth.role = "admin" || (@request.auth.role = "estudiante" && student = @request.auth.id)`
+    - **Create Rule**: `@request.auth.role = "estudiante" && student = @request.auth.id`
+    - **Update Rule**: `@request.auth.role = "docente" || @request.auth.role = "admin" || (@request.auth.role = "estudiante" && student = @request.auth.id)`
+    - **Delete Rule**: `@request.auth.role = "docente" || @request.auth.role = "admin"`
+- **Indexes**:
+    - `idx_team_validation_student`: estudiante unico, conserva una respuesta vigente por alumno.
+    - `idx_team_validation_team`: indice para agrupar respuestas por equipo.
+    - `idx_team_validation_status`: indice para filtrar respuestas que requieren revision.
+
+## 6. Colección: `deliveries` (Entregas de TP)
 - **Name**: `deliveries`
 - **Type**: `Base`
 - **Fields**:
@@ -205,16 +246,6 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
         - *Nota*: Estudiantes pueden modificar su entrega, y docentes pueden calificarlas.
     - **Delete Rule**: `student = @request.auth.id || @request.auth.role = "admin"`
 
-## 6. Colección: `teams`
-- **Name**: `teams`
-- **Type**: `Base`
-- **Fields**:
-    - `name`: Text (Required)
-    - `members`: Relation (Multiple) -> Collection: `users`
-- **API Rules**:
-    - **List/View**: `@request.auth.id != ""`
-    - **Create/Update/Delete**: `@request.auth.role = "docente" || @request.auth.role = "admin"`
-
 ## 8. Colección: `messages` (Chat de Equipo)
 - **Name**: `messages`
 - **Type**: `Base`
@@ -223,9 +254,7 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - `sender`: Relation (Single, Required) -> Collection: `users` (Renamed from `user` to avoid system conflicts)
     - `team`: Relation (Single, Required) -> Collection: `teams`
 - **API Rules**:
-    - **List/View**: `@request.auth.id != "" && team.members.id ?= @request.auth.id`
-        - *Nota*: Solo los miembros del equipo pueden ver los mensajes.
-    - **Create Rule**: `@request.auth.id != "" && @request.data.team.members ?= @request.auth.id`
+    - Pendiente de adaptar si se implementa el chat: la validacion de pertenencia debe consultar `team_members`, no un campo `members` dentro de `teams`.
 
 ## 9. Colección: `inquiries` (Consultas)
 - **Name**: `inquiries`

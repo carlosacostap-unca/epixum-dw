@@ -88,11 +88,21 @@ export default async function PartialExamsPage() {
                         Activa tu camara para iniciar el parcial. Se mostraran preguntas de a una por vez.
                       </p>
                       {result && (
-                        <p className="mt-3 text-sm font-medium text-zinc-700 dark:text-zinc-200">
-                          {result.scoreVisible
-                            ? `Nota: ${result.score}/${result.totalQuestions}`
-                            : "Parcial enviado. La nota aun no fue publicada por el docente."}
-                        </p>
+                        <div className="mt-3">
+                          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                            {result.scoreVisible
+                              ? `Nota: ${result.score}/${result.totalQuestions}`
+                              : "Parcial enviado. La nota aún no fue publicada por el docente."}
+                          </p>
+                          {result.scoreVisible && (
+                            <Link
+                              href={`/parciales/${partialExam.id}/devolucion`}
+                              className="mt-2 inline-flex rounded-md border border-blue-200 px-3 py-2 text-sm font-medium text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:text-blue-200 dark:hover:bg-blue-950/40"
+                            >
+                              Ver devolución completa
+                            </Link>
+                          )}
+                        </div>
                       )}
                     </div>
                     {availability.isOpen && !alreadySubmitted ? (

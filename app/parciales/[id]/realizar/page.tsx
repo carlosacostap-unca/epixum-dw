@@ -54,7 +54,16 @@ export default async function TakePartialExamPage({ params }: { params: Promise<
                 ? `Tu nota es ${submittedSimulation.score}/${submittedSimulation.totalQuestions}.`
                 : "Tu entrega quedo registrada. La nota se mostrara cuando el docente la habilite."
             }
-          />
+          >
+            {submittedSimulation.scoreVisible && (
+              <Link
+                href={`/parciales/${partialExam.id}/devolucion`}
+                className="mt-4 inline-flex rounded-md bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                Ver devolución completa
+              </Link>
+            )}
+          </AvailabilityMessage>
         </PartialExamShell>
       );
     }
@@ -168,11 +177,12 @@ function PartialExamShell({
   );
 }
 
-function AvailabilityMessage({ title, message }: { title: string; message: string }) {
+function AvailabilityMessage({ title, message, children }: { title: string; message: string; children?: ReactNode }) {
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-6 text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
       <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-zinc-500 dark:text-zinc-400">{message}</p>
+      {children}
     </div>
   );
 }

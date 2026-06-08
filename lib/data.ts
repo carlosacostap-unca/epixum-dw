@@ -13,6 +13,9 @@ import {
   PartialExamTurn,
   PartialExamUnit,
   PartialExamUnitDocument,
+  Team,
+  TeamMember,
+  TeamValidationResponse,
 } from '@/types';
 import { getPartialExamAvailability } from './partial-exam-availability';
 import { normalizeRelationIds, PARTIAL_EXAM_QUESTION_COUNT } from './partial-exam-rules';
@@ -21,7 +24,7 @@ import { cache } from 'react';
 import PocketBase from 'pocketbase';
 import { cookies } from 'next/headers';
 
-async function createQuestionBankReadClient() {
+async function createAdministrativeReadClient() {
   const url = process.env['NEXT_PUBLIC_POCKETBASE_URL'];
   const email = process.env['POCKETBASE_ADMIN'];
   const password = process.env['POCKETBASE_PASSWORD'];
@@ -42,6 +45,10 @@ async function createQuestionBankReadClient() {
   }
 
   return adminPb;
+}
+
+async function createQuestionBankReadClient() {
+  return createAdministrativeReadClient();
 }
 
 // Helper to create client with token for cached functions
@@ -103,6 +110,83 @@ export async function getUserById(userId: string) {
         return await pb.collection('users').getOne<User>(userId);
     } catch (e) {
         console.error('Error fetching user by id:', e);
+        return null;
+    }
+}
+
+export async function getTeams() {
+    const pb = await createServerClient();
+    return await pb.collection('teams').getFullList<Team>({
+        sort: 'name',
+    });
+}
+
+export async function getTeamMembers() {
+    const pb = await createServerClient();
+    return await pb.collection('team_members').getFullList<TeamMember>();
+}
+
+export async function getTeamValidationResponses() {
+    const pb = await createServerClient();
+    return await pb.collection('team_validation_responses').getFullList<TeamValidationResponse>({
+        sort: '-submittedAt',
+    });
+}
+
+export async function getTeamOverview() {
+    const [teams, students, members, validationResponses] = await Promise.all([
+        getTeams(),
+        getStudents(),
+        getTeamMembers(),
+        getTeamValidationResponses(),
+    ]);
+
+    return { teams, students, members, validationResponses };
+}
+
+export async function getStudentTeam(studentId: string) {
+    const pb = await createAdministrativeReadClient();
+
+    try {
+        const [memberships, validationResponses] = await Promise.all([
+            pb.collection('team_members').getFullList<TeamMember>({
+                filter: pb.filter('student = {:studentId}', { studentId }),
+            }),
+            pb.collection('team_validation_responses').getFullList<TeamValidationResponse>({
+                filter: pb.filter('student = {:studentId}', { studentId }),
+            }),
+        ]);
+        const membership = memberships[0];
+        const validationResponse = validationResponses[0] || null;
+
+        if (!membership) {
+            return { team: null, members: [] as User[], validationResponse };
+        }
+
+        const [team, teamMemberships] = await Promise.all([
+            pb.collection('teams').getOne<Team>(membership.team),
+            pb.collection('team_members').getFullList<TeamMember>({
+                filter: pb.filter('team = {:teamId}', { teamId: membership.team }),
+            }),
+        ]);
+        const studentIds = teamMemberships.map((teamMembership) => teamMembership.student).filter(Boolean);
+
+        if (studentIds.length === 0) {
+            return { team, members: [] as User[], validationResponse };
+        }
+
+        const studentFilter = studentIds.map((id) => pb.filter('id = {:id}', { id })).join(' || ');
+        const members = await pb.collection('users').getFullList<User>({
+            filter: `(${studentFilter})`,
+        });
+
+        return {
+            team,
+            members: members.sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email, 'es', { sensitivity: 'base' })),
+            validationResponse,
+        };
+    } catch (error) {
+        console.error('Error fetching student team:', error);
         return null;
     }
 }
@@ -454,6 +538,36 @@ export async function getStudentPartialExamResults(partialExamIds: string[]) {
     console.error('Error fetching student partial exam results:', error);
     return new Map<string, PartialExamSimulation>();
   }
+}
+
+export async function getStudentPartialExamFeedback(partialExamId: string) {
+  const partialExam = await getPartialExam(partialExamId);
+  const simulation = await getLatestStudentPartialExamSimulation(partialExamId);
+
+  if (!simulation) {
+    return {
+      partialExam,
+      simulation: null,
+      questions: [] as PartialExamQuestion[],
+    };
+  }
+
+  if (!simulation.scoreVisible) {
+    return {
+      partialExam,
+      simulation,
+      questions: [] as PartialExamQuestion[],
+    };
+  }
+
+  const questionIds = normalizeRelationIds(simulation.questionIds);
+  const questions = await getPartialExamSimulationQuestions(partialExam, questionIds.length, questionIds);
+
+  return {
+    partialExam,
+    simulation,
+    questions,
+  };
 }
 
 export async function getActivePartialExamAttempt(partialExamId: string) {
