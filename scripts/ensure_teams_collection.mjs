@@ -135,6 +135,7 @@ try {
 }
 
 const teacherOrAdmin = '@request.auth.role = "docente" || @request.auth.role = "admin"';
+const teacherAdminOrStudent = `${teacherOrAdmin} || @request.auth.role = "estudiante"`;
 const usersCollection = await collectionExists(pb, 'users');
 
 if (!usersCollection) {
@@ -144,8 +145,8 @@ if (!usersCollection) {
 const teamsCollection = await ensureCollection(pb, {
   name: 'teams',
   type: 'base',
-  listRule: teacherOrAdmin,
-  viewRule: teacherOrAdmin,
+  listRule: teacherAdminOrStudent,
+  viewRule: teacherAdminOrStudent,
   createRule: teacherOrAdmin,
   updateRule: teacherOrAdmin,
   deleteRule: teacherOrAdmin,
@@ -159,8 +160,8 @@ const teamsCollection = await ensureCollection(pb, {
 });
 
 await ensureCollectionRules(pb, 'teams', {
-  listRule: teacherOrAdmin,
-  viewRule: teacherOrAdmin,
+  listRule: teacherAdminOrStudent,
+  viewRule: teacherAdminOrStudent,
   createRule: teacherOrAdmin,
   updateRule: teacherOrAdmin,
   deleteRule: teacherOrAdmin,
@@ -184,8 +185,8 @@ await ensureCollectionIndexes(pb, 'teams', [
 await ensureCollection(pb, {
   name: 'team_members',
   type: 'base',
-  listRule: teacherOrAdmin,
-  viewRule: teacherOrAdmin,
+  listRule: teacherAdminOrStudent,
+  viewRule: teacherAdminOrStudent,
   createRule: teacherOrAdmin,
   updateRule: teacherOrAdmin,
   deleteRule: teacherOrAdmin,
@@ -200,8 +201,8 @@ await ensureCollection(pb, {
 });
 
 await ensureCollectionRules(pb, 'team_members', {
-  listRule: teacherOrAdmin,
-  viewRule: teacherOrAdmin,
+  listRule: teacherAdminOrStudent,
+  viewRule: teacherAdminOrStudent,
   createRule: teacherOrAdmin,
   updateRule: teacherOrAdmin,
   deleteRule: teacherOrAdmin,
