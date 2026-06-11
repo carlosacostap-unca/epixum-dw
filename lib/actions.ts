@@ -594,6 +594,7 @@ export async function cancelFinalProjectPresentationSlotReservation(slotId: stri
   }
 }
 export async function saveFinalProjectTeamResource(formData: FormData) {
+  const maxFileSizeBytes = 50 * 1024 * 1024;
   const pb = await createServerClient();
   const user = pb.authStore.model as { id?: string; role?: unknown } | null;
 
@@ -648,6 +649,10 @@ export async function saveFinalProjectTeamResource(formData: FormData) {
       const file = formData.get('file') as File | null;
       if (!file || file.size === 0) {
         return { success: false, error: 'Selecciona un archivo para subir.' };
+      }
+
+      if (file.size > maxFileSizeBytes) {
+        return { success: false, error: 'El archivo no puede superar los 50 MB.' };
       }
 
       payload.file = file;

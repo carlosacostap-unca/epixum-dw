@@ -10,6 +10,9 @@ interface FinalProjectTeamResourcesProps {
   resources: FinalProjectTeamResource[];
 }
 
+const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+const MAX_FILE_SIZE_LABEL = "50 MB";
+
 function getResourceFileUrl(resource: FinalProjectTeamResource) {
   const pbUrl = process.env.NEXT_PUBLIC_POCKETBASE_URL?.replace(/\/$/, "");
   if (!pbUrl || !resource.file) {
@@ -63,6 +66,15 @@ export default function FinalProjectTeamResources({ resources }: FinalProjectTea
 
   function handleSubmit(formData: FormData) {
     const resourceKey = String(formData.get("resourceKey") || "") as FinalProjectTeamResourceKey;
+    const definition = FINAL_PROJECT_RESOURCE_DEFINITIONS.find((item) => item.key === resourceKey);
+    const submittedFile = formData.get("file");
+
+    if (definition?.kind === "file" && submittedFile instanceof File && submittedFile.size > MAX_FILE_SIZE_BYTES) {
+      setMessage(null);
+      setError(`El archivo no puede superar los ${MAX_FILE_SIZE_LABEL}.`);
+      return;
+    }
+
     setPendingKey(resourceKey);
     setMessage(null);
     setError(null);
