@@ -17,6 +17,8 @@ import {
   PartialExamSimulationFinishReason,
   PartialExamStatus,
   PartialExamTurn,
+  FinalProjectPresentationSlot,
+  FinalProjectPresentationSlotReservation,
   TeamMember,
   TeamValidationStatus,
 } from "@/types";
@@ -24,6 +26,7 @@ import PocketBase from "pocketbase";
 import { getDeliveryLimitDate } from "./delivery-deadlines";
 import { getPartialExamAvailability } from "./partial-exam-availability";
 import { normalizeRelationIds, PARTIAL_EXAM_QUESTION_COUNT } from "./partial-exam-rules";
+import { getFinalProjectResourceDefinition } from "./final-project-resources";
 
 type PartialExamPayload = {
   title: string;
@@ -356,6 +359,335 @@ export async function updateUserRole(userId: string, role: string) {
 
 function canManageTeams(user: { role?: unknown } | null | undefined) {
   return user?.role === 'docente' || user?.role === 'admin';
+}
+
+const FINAL_PROJECT_SLOT_DURATION_MINUTES = 15;
+
+function addMinutes(date: Date, minutes: number) {
+  return new Date(date.getTime() + minutes * 60 * 1000);
+}
+
+async function getCurrentStudentTeamId(pb: PocketBase, studentId: string) {
+  const memberships = await pb.collection('team_members').getFullList<TeamMember>({
+    filter: pb.filter('student = {:studentId}', { studentId }),
+  });
+
+  return memberships[0]?.team || '';
+}
+
+async function getReservedSlotForTeam(pb: PocketBase, teamId: string) {
+  const reservations = await pb.collection('final_project_slot_reservations').getFullList<FinalProjectPresentationSlotReservation>({
+    filter: pb.filter('team = {:teamId}', { teamId }),
+    expand: 'slot',
+  });
+
+  if (reservations[0]?.expand?.slot) {
+    return reservations[0].expand.slot;
+  }
+
+  const legacySlots = await pb.collection('final_project_presentation_slots').getFullList<FinalProjectPresentationSlot>({
+    filter: pb.filter('team = {:teamId}', { teamId }),
+  });
+
+  return legacySlots[0] || null;
+}
+
+async function getFinalProjectSlotReservation(pb: PocketBase, slotId: string) {
+  const reservations = await pb.collection('final_project_slot_reservations').getFullList<FinalProjectPresentationSlotReservation>({
+    filter: pb.filter('slot = {:slotId}', { slotId }),
+  });
+
+  return reservations[0] || null;
+}
+
+export async function createFinalProjectPresentationSlot(formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { role?: unknown } | null;
+
+  if (!canManageTeams(user)) {
+    return { success: false, error: 'Solo los docentes pueden gestionar turnos.' };
+  }
+
+  const startsAtValue = String(formData.get('startsAt') || '').trim();
+  if (!startsAtValue) {
+    return { success: false, error: 'Indica la fecha y hora de inicio del turno.' };
+  }
+
+  const startsAt = new Date(startsAtValue);
+  if (Number.isNaN(startsAt.getTime())) {
+    return { success: false, error: 'La fecha y hora del turno no es válida.' };
+  }
+
+  const endsAt = addMinutes(startsAt, FINAL_PROJECT_SLOT_DURATION_MINUTES);
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    await dataPb.collection('final_project_presentation_slots').create({
+      startsAt: startsAt.toISOString(),
+      endsAt: endsAt.toISOString(),
+    });
+
+    revalidatePath('/proyecto-final');
+    revalidatePath('/mi-equipo');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to create final project presentation slot:', error);
+    return { success: false, error: 'No se pudo crear el turno. Verifica que no exista otro turno con el mismo inicio.' };
+  }
+}
+
+export async function deleteFinalProjectPresentationSlot(slotId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { role?: unknown } | null;
+
+  if (!canManageTeams(user)) {
+    return { success: false, error: 'Solo los docentes pueden eliminar turnos.' };
+  }
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    const reservation = await getFinalProjectSlotReservation(dataPb, slotId);
+    if (reservation) {
+      await dataPb.collection('final_project_slot_reservations').delete(reservation.id);
+    }
+
+    await dataPb.collection('final_project_presentation_slots').delete(slotId);
+
+    revalidatePath('/proyecto-final');
+    revalidatePath('/mi-equipo');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete final project presentation slot:', error);
+    return { success: false, error: 'No se pudo eliminar el turno.' };
+  }
+}
+
+export async function releaseFinalProjectPresentationSlot(slotId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { role?: unknown } | null;
+
+  if (!canManageTeams(user)) {
+    return { success: false, error: 'Solo los docentes pueden liberar turnos.' };
+  }
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    const reservation = await getFinalProjectSlotReservation(dataPb, slotId);
+    if (reservation) {
+      await dataPb.collection('final_project_slot_reservations').delete(reservation.id);
+    }
+
+    await dataPb.collection('final_project_presentation_slots').update(slotId, {
+      team: null,
+      reservedBy: null,
+      reservedAt: null,
+    });
+
+    revalidatePath('/proyecto-final');
+    revalidatePath('/mi-equipo');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to release final project presentation slot:', error);
+    return { success: false, error: 'No se pudo liberar el turno.' };
+  }
+}
+
+export async function reserveFinalProjectPresentationSlot(slotId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { id?: string; role?: unknown } | null;
+
+  if (!user?.id || user.role !== 'estudiante') {
+    return { success: false, error: 'Solo los estudiantes pueden reservar un turno.' };
+  }
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    const teamId = await getCurrentStudentTeamId(dataPb, user.id);
+
+    if (!teamId) {
+      return { success: false, error: 'Necesitas tener un equipo asignado para reservar un turno.' };
+    }
+
+    const existingReservation = await getReservedSlotForTeam(dataPb, teamId);
+    if (existingReservation && existingReservation.id !== slotId) {
+      return { success: false, error: 'Tu equipo ya tiene un turno reservado.' };
+    }
+
+    const slot = await dataPb.collection('final_project_presentation_slots').getOne<FinalProjectPresentationSlot>(slotId);
+    const reservation = await getFinalProjectSlotReservation(dataPb, slotId);
+    if ((reservation?.team && reservation.team !== teamId) || (slot.team && slot.team !== teamId)) {
+      return { success: false, error: 'Ese turno ya fue reservado por otro equipo.' };
+    }
+
+    const reservedAt = new Date().toISOString();
+
+    try {
+      await dataPb.collection('final_project_slot_reservations').create({
+        slot: slotId,
+        team: teamId,
+        reservedBy: user.id,
+        reservedAt,
+      });
+    } catch (error) {
+      const currentReservation = await getFinalProjectSlotReservation(dataPb, slotId);
+      if (currentReservation?.team === teamId) {
+        return { success: false, error: 'Tu equipo ya tiene este turno reservado.' };
+      }
+
+      console.error('Failed to create final project slot reservation:', error);
+      return { success: false, error: 'Ese turno ya fue reservado por otro equipo.' };
+    }
+
+    try {
+      await dataPb.collection('final_project_presentation_slots').update(slotId, {
+        team: teamId,
+        reservedBy: user.id,
+        reservedAt,
+      });
+    } catch (error) {
+      console.error('Failed to sync final project presentation slot reservation:', error);
+    }
+
+    revalidatePath('/proyecto-final');
+    revalidatePath('/mi-equipo');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to reserve final project presentation slot:', error);
+    return { success: false, error: 'No se pudo reservar el turno.' };
+  }
+}
+
+export async function cancelFinalProjectPresentationSlotReservation(slotId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { id?: string; role?: unknown } | null;
+
+  if (!user?.id || user.role !== 'estudiante') {
+    return { success: false, error: 'Solo los estudiantes pueden cancelar una reserva.' };
+  }
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    const teamId = await getCurrentStudentTeamId(dataPb, user.id);
+    const slot = await dataPb.collection('final_project_presentation_slots').getOne<FinalProjectPresentationSlot>(slotId);
+    const reservation = await getFinalProjectSlotReservation(dataPb, slotId);
+
+    if (!teamId || (reservation ? reservation.team !== teamId : slot.team !== teamId)) {
+      return { success: false, error: 'Solo podés cancelar el turno reservado por tu equipo.' };
+    }
+
+    if (reservation) {
+      await dataPb.collection('final_project_slot_reservations').delete(reservation.id);
+    }
+
+    await dataPb.collection('final_project_presentation_slots').update(slotId, {
+      team: null,
+      reservedBy: null,
+      reservedAt: null,
+    });
+
+    revalidatePath('/proyecto-final');
+    revalidatePath('/mi-equipo');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to cancel final project presentation slot reservation:', error);
+    return { success: false, error: 'No se pudo cancelar la reserva.' };
+  }
+}
+export async function saveFinalProjectTeamResource(formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { id?: string; role?: unknown } | null;
+
+  if (!user?.id || user.role !== 'estudiante') {
+    return { success: false, error: 'Solo los estudiantes pueden cargar recursos del proyecto final.' };
+  }
+
+  const resourceKey = String(formData.get('resourceKey') || '').trim();
+  const definition = getFinalProjectResourceDefinition(resourceKey);
+
+  if (!definition) {
+    return { success: false, error: 'El recurso solicitado no es válido.' };
+  }
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    const teamId = await getCurrentStudentTeamId(dataPb, user.id);
+
+    if (!teamId) {
+      return { success: false, error: 'Necesitas tener un equipo asignado para cargar recursos.' };
+    }
+
+    const existingRecords = await dataPb.collection('final_project_team_resources').getFullList({
+      filter: dataPb.filter('team = {:teamId} && resourceKey = {:resourceKey}', { teamId, resourceKey }),
+    });
+    const existingRecord = existingRecords[0] || null;
+    const submittedAt = new Date().toISOString();
+    const payload: Record<string, unknown> = {
+      team: teamId,
+      resourceKey: definition.key,
+      moduleName: definition.moduleName,
+      title: definition.title,
+      kind: definition.kind,
+      submittedBy: user.id,
+      submittedAt,
+    };
+
+    if (definition.kind === 'url') {
+      const url = String(formData.get('url') || '').trim();
+      if (!url) {
+        return { success: false, error: 'Ingresa la URL del recurso.' };
+      }
+
+      try {
+        new URL(url);
+      } catch {
+        return { success: false, error: 'Ingresa una URL válida.' };
+      }
+
+      payload.url = url;
+    } else {
+      const file = formData.get('file') as File | null;
+      if (!file || file.size === 0) {
+        return { success: false, error: 'Selecciona un archivo para subir.' };
+      }
+
+      payload.file = file;
+      payload.originalName = file.name;
+    }
+
+    if (existingRecord) {
+      await dataPb.collection('final_project_team_resources').update(existingRecord.id, payload);
+    } else {
+      await dataPb.collection('final_project_team_resources').create(payload);
+    }
+
+    revalidatePath('/mi-equipo');
+    revalidatePath('/proyecto-final');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to save final project team resource:', error);
+    return { success: false, error: 'No se pudo guardar el recurso.' };
+  }
+}
+
+export async function deleteFinalProjectTeamResource(resourceId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { role?: unknown } | null;
+
+  if (!canManageTeams(user)) {
+    return { success: false, error: 'Solo los docentes pueden eliminar recursos del proyecto final.' };
+  }
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    await dataPb.collection('final_project_team_resources').delete(resourceId);
+
+    revalidatePath('/mi-equipo');
+    revalidatePath('/proyecto-final');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete final project team resource:', error);
+    return { success: false, error: 'No se pudo eliminar el recurso.' };
+  }
 }
 
 function normalizeTeamPayload(formData: FormData) {

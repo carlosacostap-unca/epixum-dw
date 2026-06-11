@@ -2,7 +2,6 @@ import {
     getAllClasses,
     getUserDeliveries,
     getAllAssignments,
-    getStudentTeam,
     getPublishedStudentPartialExams,
     getStudentPartialExamResults,
 } from "@/lib/data";
@@ -11,7 +10,6 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/pocketbase-server";
 import FormattedDate from "@/components/FormattedDate";
 import StudentGradesSummary from "@/components/StudentGradesSummary";
-import StudentTeamValidationForm from "@/components/StudentTeamValidationForm";
 
 export const dynamic = 'force-dynamic';
 
@@ -20,15 +18,12 @@ export default async function Home() {
 
   // 1. Student View (Navigation Cards)
   if (user && user.role === 'estudiante') {
-    const [userDeliveries, assignments, studentTeam, partialExams] = await Promise.all([
+    const [userDeliveries, assignments, partialExams] = await Promise.all([
         getUserDeliveries(user.id),
         getAllAssignments(),
-        getStudentTeam(user.id),
         getPublishedStudentPartialExams(),
     ]);
     const partialExamResults = await getStudentPartialExamResults(partialExams.map((partialExam) => partialExam.id));
-    const teammates = studentTeam?.members.filter((member) => member.id !== user.id) || [];
-    const hasAssignedTeam = Boolean(studentTeam?.team);
 
     return (
         <div className="container mx-auto p-8 min-h-screen">
@@ -39,54 +34,6 @@ export default async function Home() {
             </header>
 
 
-            <section className="max-w-4xl mx-auto mb-8 rounded-xl border border-blue-200 bg-blue-50 p-5 text-blue-950 shadow-sm dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-100">
-                <div className="flex gap-4">
-                    <div className="mt-1 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200">
-                        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.86 6.86 0 016 18.75l.001-.032m11.999 0A5.971 5.971 0 0012 13.5a5.971 5.971 0 00-6 5.218m12 0a8.962 8.962 0 01-6 2.282 8.962 8.962 0 01-6-2.282M12 13.5a3 3 0 100-6 3 3 0 000 6z" />
-                        </svg>
-                    </div>
-                    <div>
-                        <h2 className="text-lg font-bold">Revisión del proyecto final</h2>
-                        <p className="mt-2 leading-relaxed">
-                            Nos estamos preparando para la revisión del proyecto final. Todo alumno debe pertenecer a un equipo y cada equipo debe solicitar un turno para realizar su presentación.
-                        </p>
-                        <div className="mt-4 rounded-lg border border-blue-200 bg-white/70 px-4 py-3 text-sm dark:border-blue-800 dark:bg-blue-950/50">
-                            <span className="font-semibold">Tu equipo: </span>
-                            {studentTeam?.team ? (
-                                <span>{studentTeam.team.name}</span>
-                            ) : (
-                                <span>Sin equipo asignado todavía. Coordiná tu asignación con el docente.</span>
-                            )}
-                        </div>
-                        {studentTeam?.team && (
-                            <div className="mt-4">
-                                <h3 className="text-sm font-semibold uppercase tracking-wide text-blue-800 dark:text-blue-200">
-                                    Compañeros de equipo
-                                </h3>
-                                {teammates.length > 0 ? (
-                                    <ul className="mt-2 divide-y divide-blue-100 rounded-lg border border-blue-200 bg-white/70 text-sm dark:divide-blue-900 dark:border-blue-800 dark:bg-blue-950/50">
-                                        {teammates.map((teammate) => (
-                                            <li key={teammate.id} className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                                                <span className="font-medium text-blue-950 dark:text-blue-100">
-                                                    {teammate.name || [teammate.lastName, teammate.firstName].filter(Boolean).join(", ") || "Sin nombre"}
-                                                </span>
-                                                <span className="text-blue-800 dark:text-blue-200">{teammate.email}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                ) : (
-                                    <p className="mt-2 rounded-lg border border-blue-200 bg-white/70 px-4 py-3 text-sm dark:border-blue-800 dark:bg-blue-950/50">
-                                        Todavía no hay otros compañeros asignados a este equipo.
-                                    </p>
-                                )}
-                            </div>
-                        )}
-                        <StudentTeamValidationForm response={studentTeam?.validationResponse} hasTeam={hasAssignedTeam} />
-                    </div>
-                </div>
-            </section>
-            
             <StudentGradesSummary
                 deliveries={userDeliveries}
                 assignments={assignments}
@@ -126,6 +73,14 @@ export default async function Home() {
                     </div>
                     <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Parciales</h2>
                     <p className="text-zinc-500 dark:text-zinc-400">Realizá parciales publicados por el docente.</p>
+                </Link>
+
+                <Link href="/mi-equipo" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-teal-500 hover:shadow-md transition-all group">
+                    <div className="w-12 h-12 bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.86 6.86 0 016 18.75l.001-.032m11.999 0A5.971 5.971 0 0012 13.5a5.971 5.971 0 00-6 5.218m12 0a8.962 8.962 0 01-6 2.282 8.962 8.962 0 01-6-2.282M12 13.5a3 3 0 100-6 3 3 0 000 6z" /></svg>
+                    </div>
+                    <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Proyecto Final</h2>
+                    <p className="text-zinc-500 dark:text-zinc-400">Consulta tu equipo, el turno de presentación y los recursos cargados.</p>
                 </Link>
 
                 <Link href="/inquiries" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-orange-500 hover:shadow-md transition-all group">
@@ -176,6 +131,14 @@ export default async function Home() {
                   </div>
                   <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Equipos</h2>
                   <p className="text-zinc-500 dark:text-zinc-400">Crea grupos de trabajo y asigna estudiantes.</p>
+              </Link>
+
+              <Link href="/proyecto-final" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-amber-500 hover:shadow-md transition-all group">
+                  <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Proyecto Final</h2>
+                  <p className="text-zinc-500 dark:text-zinc-400">Revisa el estado de equipos y solicitudes para la revisión final.</p>
               </Link>
               
               <Link href="/course-info" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-purple-500 hover:shadow-md transition-all group">
@@ -297,3 +260,4 @@ export default async function Home() {
     </div>
   );
 }
+

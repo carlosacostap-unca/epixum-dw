@@ -13,6 +13,9 @@ import {
   PartialExamTurn,
   PartialExamUnit,
   PartialExamUnitDocument,
+  FinalProjectPresentationSlotReservation,
+  FinalProjectPresentationSlot,
+  FinalProjectTeamResource,
   Team,
   TeamMember,
   TeamValidationResponse,
@@ -142,6 +145,89 @@ export async function getTeamOverview() {
     ]);
 
     return { teams, students, members, validationResponses };
+}
+
+export async function getFinalProjectPresentationSlots() {
+    const pb = await createAdministrativeReadClient();
+
+    try {
+        const [slots, reservations] = await Promise.all([
+            pb.collection('final_project_presentation_slots').getFullList<FinalProjectPresentationSlot>({
+                sort: 'startsAt',
+            }),
+            pb.collection('final_project_slot_reservations').getFullList<FinalProjectPresentationSlotReservation>({
+                expand: 'team,reservedBy',
+            }),
+        ]);
+
+        return mergeFinalProjectSlotReservations(slots, reservations);
+    } catch (error) {
+        console.error('Error fetching final project presentation slots:', error);
+        return [];
+    }
+}
+
+export async function getFinalProjectPresentationSlot(slotId: string) {
+    const pb = await createAdministrativeReadClient();
+
+    try {
+        const slot = await pb.collection('final_project_presentation_slots').getOne<FinalProjectPresentationSlot>(slotId);
+        const reservations = await pb.collection('final_project_slot_reservations').getFullList<FinalProjectPresentationSlotReservation>({
+            filter: pb.filter('slot = {:slotId}', { slotId }),
+            expand: 'team,reservedBy',
+        });
+
+        return mergeFinalProjectSlotReservations([slot], reservations)[0] || null;
+    } catch (error) {
+        console.error('Error fetching final project presentation slot:', error);
+        return null;
+    }
+}
+
+export async function getFinalProjectTeamResources(teamId?: string) {
+    if (!teamId) {
+        return [];
+    }
+
+    const pb = await createAdministrativeReadClient();
+
+    try {
+        return await pb.collection('final_project_team_resources').getFullList<FinalProjectTeamResource>({
+            filter: pb.filter('team = {:teamId}', { teamId }),
+            expand: 'submittedBy',
+            sort: 'moduleName,title',
+        });
+    } catch (error) {
+        console.error('Error fetching final project team resources:', error);
+        return [];
+    }
+}
+
+function mergeFinalProjectSlotReservations(
+    slots: FinalProjectPresentationSlot[],
+    reservations: FinalProjectPresentationSlotReservation[],
+) {
+    const reservationBySlot = new Map(reservations.map((reservation) => [reservation.slot, reservation]));
+
+    return slots.map((slot) => {
+        const reservation = reservationBySlot.get(slot.id);
+        if (!reservation) {
+            return slot;
+        }
+
+        return {
+            ...slot,
+            team: reservation.team,
+            reservedBy: reservation.reservedBy,
+            reservedAt: reservation.reservedAt,
+            reservation,
+            expand: {
+                ...slot.expand,
+                team: reservation.expand?.team,
+                reservedBy: reservation.expand?.reservedBy,
+            },
+        };
+    });
 }
 
 export async function getStudentTeam(studentId: string) {

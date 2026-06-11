@@ -63,6 +63,56 @@ export interface TeamValidationResponse extends BaseModel {
   };
 }
 
+export interface FinalProjectPresentationSlot extends BaseModel {
+  startsAt: string;
+  endsAt: string;
+  team?: string;
+  reservedBy?: string;
+  reservedAt?: string;
+  reservation?: FinalProjectPresentationSlotReservation;
+  expand?: {
+    team?: Team;
+    reservedBy?: User;
+  };
+}
+
+export interface FinalProjectPresentationSlotReservation extends BaseModel {
+  slot: string;
+  team: string;
+  reservedBy: string;
+  reservedAt: string;
+  expand?: {
+    slot?: FinalProjectPresentationSlot;
+    team?: Team;
+    reservedBy?: User;
+  };
+}
+
+export type FinalProjectTeamResourceKey =
+  | 'agile_tp2'
+  | 'agile_tp3'
+  | 'ux_figma'
+  | 'web_deployed_site';
+
+export type FinalProjectTeamResourceKind = 'file' | 'url';
+
+export interface FinalProjectTeamResource extends BaseModel {
+  team: string;
+  resourceKey: FinalProjectTeamResourceKey;
+  moduleName: string;
+  title: string;
+  kind: FinalProjectTeamResourceKind;
+  url?: string;
+  file?: string;
+  originalName?: string;
+  submittedBy?: string;
+  submittedAt?: string;
+  expand?: {
+    team?: Team;
+    submittedBy?: User;
+  };
+}
+
 export interface Link extends BaseModel {
   title: string;
   url: string;
