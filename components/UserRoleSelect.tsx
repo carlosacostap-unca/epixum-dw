@@ -23,6 +23,7 @@ export default function UserRoleSelect({ user }: { user: User }) {
       <option value="">Seleccionar rol</option>
       <option value="estudiante">Estudiante</option>
       <option value="docente">Docente</option>
+      <option value="docente_invitado">Docente Invitado</option>
       <option value="admin">Administrador</option>
     </select>
   );

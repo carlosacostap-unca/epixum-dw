@@ -13,6 +13,10 @@ export default async function ProfilePage() {
     redirect("/login");
   }
 
+  if (currentUser.role === "docente_invitado") {
+    redirect("/proyecto-final");
+  }
+
   // Fetch fresh user data to ensure we have the latest fields
   let userData: User;
   try {

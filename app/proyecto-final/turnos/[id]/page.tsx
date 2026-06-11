@@ -1,11 +1,18 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
+import FinalProjectMemberEvaluationForm from "@/components/FinalProjectMemberEvaluationForm";
 import FinalProjectSlotDetailActions from "@/components/FinalProjectSlotDetailActions";
 import FinalProjectTeamResourceDeleteButton from "@/components/FinalProjectTeamResourceDeleteButton";
 import { FINAL_PROJECT_RESOURCE_DEFINITIONS } from "@/lib/final-project-resources";
-import { getFinalProjectPresentationSlot, getFinalProjectTeamResources, getTeamOverview } from "@/lib/data";
+import {
+  getFinalProjectMemberEvaluations,
+  getFinalProjectPresentationSlot,
+  getFinalProjectTeamResources,
+  getTeamOverview,
+} from "@/lib/data";
 import { getCurrentUser } from "@/lib/pocketbase-server";
+import { isFinalProjectEvaluatorRole, isTeacherRole } from "@/lib/roles";
 import { FinalProjectTeamResource, User } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +55,7 @@ export default async function FinalProjectSlotPage({ params }: FinalProjectSlotP
     redirect("/login");
   }
 
-  if (user.role !== "docente" && user.role !== "admin") {
+  if (!isFinalProjectEvaluatorRole(user.role)) {
     redirect("/");
   }
 
@@ -72,8 +79,12 @@ export default async function FinalProjectSlotPage({ params }: FinalProjectSlotP
         .filter((student): student is User => Boolean(student))
         .sort((a, b) => formatStudentName(a).localeCompare(formatStudentName(b), "es"))
     : [];
-  const resources = team ? await getFinalProjectTeamResources(team.id) : [];
+  const [resources, memberEvaluations] = await Promise.all([
+    team ? getFinalProjectTeamResources(team.id) : [],
+    team ? getFinalProjectMemberEvaluations(slot.id) : [],
+  ]);
   const resourceByKey = new Map(resources.map((resource) => [resource.resourceKey, resource]));
+  const canManageProject = isTeacherRole(user.role);
 
   return (
     <main className="container mx-auto min-h-screen p-8">
@@ -122,7 +133,7 @@ export default async function FinalProjectSlotPage({ params }: FinalProjectSlotP
             </div>
           </dl>
 
-          <FinalProjectSlotDetailActions slot={slot} />
+          {canManageProject && <FinalProjectSlotDetailActions slot={slot} />}
         </section>
 
         {team && (
@@ -158,6 +169,14 @@ export default async function FinalProjectSlotPage({ params }: FinalProjectSlotP
                 </p>
               )}
             </section>
+
+            <FinalProjectMemberEvaluationForm
+              slotId={slot.id}
+              teamId={team.id}
+              students={teamMembers}
+              evaluations={memberEvaluations}
+              currentTeacherId={user.id}
+            />
 
             <section className="mt-8 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
               <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Recursos cargados</h2>
@@ -208,7 +227,7 @@ export default async function FinalProjectSlotPage({ params }: FinalProjectSlotP
                       </div>
 
                       <div>
-                        {resource && (
+                        {resource && canManageProject && (
                           <FinalProjectTeamResourceDeleteButton
                             resourceId={resource.id}
                             resourceTitle={definition.title}

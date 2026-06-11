@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import FinalProjectSlotManager from "@/components/FinalProjectSlotManager";
 import { getFinalProjectPresentationSlots, getTeamOverview } from "@/lib/data";
 import { getCurrentUser } from "@/lib/pocketbase-server";
+import { isFinalProjectEvaluatorRole, isTeacherRole } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export default async function FinalProjectPage() {
     redirect("/login");
   }
 
-  if (user.role !== "docente" && user.role !== "admin") {
+  if (!isFinalProjectEvaluatorRole(user.role)) {
     redirect("/");
   }
 
@@ -25,6 +26,7 @@ export default async function FinalProjectPage() {
   const assignedStudentIds = new Set(members.map((member) => member.student).filter(Boolean));
   const unresolvedResponses = validationResponses.filter((response) => !response.resolvedAt);
   const reservedSlots = slots.filter((slot) => slot.team);
+  const canManageProject = isTeacherRole(user.role);
 
   return (
     <main className="container mx-auto min-h-screen p-8">
@@ -41,9 +43,11 @@ export default async function FinalProjectPage() {
               Seguimiento general de equipos y solicitudes de ajuste para la revisión final.
             </p>
           </div>
-          <Link href="/equipos" className="inline-flex w-fit items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
-            Gestionar equipos
-          </Link>
+          {canManageProject && (
+            <Link href="/equipos" className="inline-flex w-fit items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+              Gestionar equipos
+            </Link>
+          )}
         </div>
 
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -69,7 +73,7 @@ export default async function FinalProjectPage() {
           </div>
         </section>
 
-        <FinalProjectSlotManager slots={slots} teams={teams} students={students} />
+        <FinalProjectSlotManager slots={slots} teams={teams} students={students} canManageSlots={canManageProject} />
       </div>
     </main>
   );

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getFinalProjectPresentationSlots } from "@/lib/data";
 import { getCurrentUser } from "@/lib/pocketbase-server";
+import { isFinalProjectEvaluatorRole } from "@/lib/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export async function GET() {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  if (user.role !== "estudiante" && user.role !== "docente" && user.role !== "admin") {
+  if (user.role !== "estudiante" && !isFinalProjectEvaluatorRole(user.role)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 

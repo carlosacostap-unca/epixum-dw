@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { User } from "@/types";
+import { getRoleLabel } from "@/lib/roles";
 
 export default function Header() {
   const pathname = usePathname();
@@ -91,6 +92,14 @@ export default function Header() {
               Administrar Usuarios
             </Link>
           )}
+          {user?.role === 'docente_invitado' && (
+            <Link
+              href="/proyecto-final"
+              className="text-sm font-medium text-zinc-600 dark:text-zinc-400 hover:text-blue-500 dark:hover:text-blue-400 transition-colors"
+            >
+              Proyecto Final
+            </Link>
+          )}
           {(user?.role === 'docente' || user?.role === 'estudiante') && (
             <Link
               href="/parciales"
@@ -107,18 +116,33 @@ export default function Header() {
               Equipos
             </Link>
           )}
-          {user && (
-             <Link href="/profile" className="flex items-center gap-2 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
+          {user && user.role === 'docente_invitado' && (
+             <div className="flex items-center gap-2 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full">
                {user.avatar && (
-                <img 
-                  src={`${process.env.NEXT_PUBLIC_POCKETBASE_URL?.replace(/\/$/, '')}/api/files/_pb_users_auth_/${user.id}/${user.avatar}`} 
+                <img
+                  src={`${process.env.NEXT_PUBLIC_POCKETBASE_URL?.replace(/\/$/, '')}/api/files/_pb_users_auth_/${user.id}/${user.avatar}`}
                   className="w-5 h-5 rounded-full object-cover"
                   alt=""
                 />
               )}
                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                {user.name} 
-                <span className="ml-1 opacity-60">({user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Estudiante'})</span>
+                {user.name}
+                <span className="ml-1 opacity-60">({getRoleLabel(user.role)})</span>
+              </span>
+             </div>
+          )}
+          {user && user.role !== 'docente_invitado' && (
+             <Link href="/profile" className="flex items-center gap-2 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">
+               {user.avatar && (
+                <img
+                  src={`${process.env.NEXT_PUBLIC_POCKETBASE_URL?.replace(/\/$/, '')}/api/files/_pb_users_auth_/${user.id}/${user.avatar}`}
+                  className="w-5 h-5 rounded-full object-cover"
+                  alt=""
+                />
+              )}
+               <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                {user.name}
+                <span className="ml-1 opacity-60">({getRoleLabel(user.role)})</span>
               </span>
              </Link>
           )}

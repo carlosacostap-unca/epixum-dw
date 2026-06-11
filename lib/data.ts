@@ -15,6 +15,7 @@ import {
   PartialExamUnitDocument,
   FinalProjectPresentationSlotReservation,
   FinalProjectPresentationSlot,
+  FinalProjectMemberEvaluation,
   FinalProjectTeamResource,
   Team,
   TeamMember,
@@ -137,11 +138,20 @@ export async function getTeamValidationResponses() {
 }
 
 export async function getTeamOverview() {
+    const pb = await createAdministrativeReadClient();
+
     const [teams, students, members, validationResponses] = await Promise.all([
-        getTeams(),
-        getStudents(),
-        getTeamMembers(),
-        getTeamValidationResponses(),
+        pb.collection('teams').getFullList<Team>({
+            sort: 'name',
+        }),
+        pb.collection('users').getFullList<User>({
+            filter: 'role = "estudiante"',
+            sort: 'name',
+        }),
+        pb.collection('team_members').getFullList<TeamMember>(),
+        pb.collection('team_validation_responses').getFullList<TeamValidationResponse>({
+            sort: '-submittedAt',
+        }),
     ]);
 
     return { teams, students, members, validationResponses };
@@ -199,6 +209,25 @@ export async function getFinalProjectTeamResources(teamId?: string) {
         });
     } catch (error) {
         console.error('Error fetching final project team resources:', error);
+        return [];
+    }
+}
+
+export async function getFinalProjectMemberEvaluations(slotId?: string) {
+    if (!slotId) {
+        return [];
+    }
+
+    const pb = await createAdministrativeReadClient();
+
+    try {
+        return await pb.collection('final_project_member_evaluations').getFullList<FinalProjectMemberEvaluation>({
+            filter: pb.filter('slot = {:slotId}', { slotId }),
+            expand: 'student,evaluatedBy',
+            sort: 'student',
+        });
+    } catch (error) {
+        console.error('Error fetching final project member evaluations:', error);
         return [];
     }
 }

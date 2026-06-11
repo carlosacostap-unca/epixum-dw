@@ -1,6 +1,17 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
+function getRoleFromAuthCookie(value?: string) {
+  if (!value) return '';
+
+  try {
+    const auth = JSON.parse(decodeURIComponent(value));
+    return auth?.record?.role || auth?.model?.role || '';
+  } catch {
+    return '';
+  }
+}
+
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   
@@ -28,6 +39,13 @@ export function proxy(request: NextRequest) {
   // Redirect authenticated users away from login page
   if (isLoggedIn && path === '/login') {
     return NextResponse.redirect(new URL('/', request.url));
+  }
+
+  const role = getRoleFromAuthCookie(pbAuth?.value);
+  const isFinalProjectPath = path === '/' || path === '/proyecto-final' || path.startsWith('/proyecto-final/');
+
+  if (role === 'docente_invitado' && !isFinalProjectPath) {
+    return NextResponse.redirect(new URL('/proyecto-final', request.url));
   }
 
   return NextResponse.next();

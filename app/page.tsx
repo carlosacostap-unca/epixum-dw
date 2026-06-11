@@ -10,6 +10,7 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/pocketbase-server";
 import FormattedDate from "@/components/FormattedDate";
 import StudentGradesSummary from "@/components/StudentGradesSummary";
+import { isTeacherRole } from "@/lib/roles";
 
 export const dynamic = 'force-dynamic';
 
@@ -95,8 +96,33 @@ export default async function Home() {
     );
   }
 
+  if (user && user.role === 'docente_invitado') {
+    return (
+      <div className="container mx-auto p-8 min-h-screen">
+          <header className="mb-12 text-center">
+              <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl mb-4">
+              Proyecto Final
+              </h1>
+              <p className="text-xl text-zinc-500 dark:text-zinc-400">
+              Acceso a turnos, equipos y evaluaciones de la presentación final.
+              </p>
+          </header>
+
+          <div className="grid grid-cols-1 gap-6 max-w-2xl mx-auto mt-12">
+              <Link href="/proyecto-final" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-amber-500 hover:shadow-md transition-all group">
+                  <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  </div>
+                  <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Proyecto Final</h2>
+                  <p className="text-zinc-500 dark:text-zinc-400">Revisa turnos y registra evaluaciones durante las presentaciones.</p>
+              </Link>
+          </div>
+      </div>
+    );
+  }
+
   // 2. Teacher / Admin View (Navigation Cards)
-  if (user && (user.role === 'docente' || user.role === 'admin')) {
+  if (user && isTeacherRole(user.role)) {
     return (
       <div className="container mx-auto p-8 min-h-screen">
           <header className="mb-12 text-center">

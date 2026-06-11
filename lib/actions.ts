@@ -18,6 +18,7 @@ import {
   PartialExamStatus,
   PartialExamTurn,
   FinalProjectPresentationSlot,
+  FinalProjectMemberEvaluationRating,
   FinalProjectPresentationSlotReservation,
   TeamMember,
   TeamValidationStatus,
@@ -27,6 +28,7 @@ import { getDeliveryLimitDate } from "./delivery-deadlines";
 import { getPartialExamAvailability } from "./partial-exam-availability";
 import { normalizeRelationIds, PARTIAL_EXAM_QUESTION_COUNT } from "./partial-exam-rules";
 import { getFinalProjectResourceDefinition } from "./final-project-resources";
+import { isFinalProjectEvaluatorRole, isTeacherRole } from "./roles";
 
 type PartialExamPayload = {
   title: string;
@@ -341,10 +343,15 @@ export async function getDeliveryDownloadUrl(deliveryId: string) {
 
 export async function updateUserRole(userId: string, role: string) {
   const pb = await createServerClient();
+  const allowedRoles = ['estudiante', 'docente', 'docente_invitado', 'admin'];
   
   // Verify current user is admin
   if (!pb.authStore.isValid || pb.authStore.model?.role !== 'admin') {
     throw new Error("Unauthorized");
+  }
+
+  if (!allowedRoles.includes(role)) {
+    return { success: false, error: 'Rol no válido' };
   }
 
   try {
@@ -358,7 +365,7 @@ export async function updateUserRole(userId: string, role: string) {
 }
 
 function canManageTeams(user: { role?: unknown } | null | undefined) {
-  return user?.role === 'docente' || user?.role === 'admin';
+  return isTeacherRole(user?.role);
 }
 
 const FINAL_PROJECT_SLOT_DURATION_MINUTES = 15;
@@ -692,6 +699,84 @@ export async function deleteFinalProjectTeamResource(resourceId: string) {
   } catch (error) {
     console.error('Failed to delete final project team resource:', error);
     return { success: false, error: 'No se pudo eliminar el recurso.' };
+  }
+}
+
+export async function saveFinalProjectMemberEvaluations(formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { id?: string; role?: unknown } | null;
+
+  if (!user?.id || !isFinalProjectEvaluatorRole(user.role)) {
+    return { success: false, error: 'Solo los docentes pueden guardar evaluaciones del proyecto final.' };
+  }
+
+  const slotId = String(formData.get('slotId') || '').trim();
+  const teamId = String(formData.get('teamId') || '').trim();
+  const studentIds = formData.getAll('studentIds').map((value) => String(value).trim()).filter(Boolean);
+  const allowedRatings: FinalProjectMemberEvaluationRating[] = ['excellent', 'very_good', 'good', 'regular', 'insufficient'];
+
+  if (!slotId || !teamId || studentIds.length === 0) {
+    return { success: false, error: 'Faltan datos para guardar la evaluación.' };
+  }
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    const [slot, memberships, existingEvaluations] = await Promise.all([
+      dataPb.collection('final_project_presentation_slots').getOne<FinalProjectPresentationSlot>(slotId),
+      dataPb.collection('team_members').getFullList<TeamMember>({
+        filter: dataPb.filter('team = {:teamId}', { teamId }),
+      }),
+      dataPb.collection('final_project_member_evaluations').getFullList({
+        filter: dataPb.filter(
+          'slot = {:slotId} && evaluatedBy = {:evaluatedBy}',
+          { slotId, evaluatedBy: user.id },
+        ),
+      }),
+    ]);
+
+    if (slot.team && slot.team !== teamId) {
+      return { success: false, error: 'El turno no corresponde al equipo indicado.' };
+    }
+
+    const teamStudentIds = new Set(memberships.map((membership) => membership.student));
+    if (studentIds.some((studentId) => !teamStudentIds.has(studentId))) {
+      return { success: false, error: 'Hay estudiantes que no pertenecen a este equipo.' };
+    }
+
+    const existingByStudent = new Map(existingEvaluations.map((evaluation: any) => [evaluation.student, evaluation]));
+    const evaluatedAt = new Date().toISOString();
+
+    for (const studentId of studentIds) {
+      const rating = String(formData.get(`rating_${studentId}`) || '').trim() as FinalProjectMemberEvaluationRating | '';
+      if (rating && !allowedRatings.includes(rating)) {
+        return { success: false, error: 'La evaluación seleccionada no es válida.' };
+      }
+
+      const payload = {
+        slot: slotId,
+        team: teamId,
+        student: studentId,
+        evaluatedBy: user.id,
+        present: formData.get(`present_${studentId}`) === 'on',
+        exposed: formData.get(`exposed_${studentId}`) === 'on',
+        rating: rating || '',
+        notes: String(formData.get(`notes_${studentId}`) || '').trim(),
+        evaluatedAt,
+      };
+      const existingEvaluation = existingByStudent.get(studentId) as { id?: string } | undefined;
+
+      if (existingEvaluation?.id) {
+        await dataPb.collection('final_project_member_evaluations').update(existingEvaluation.id, payload);
+      } else {
+        await dataPb.collection('final_project_member_evaluations').create(payload);
+      }
+    }
+
+    revalidatePath(`/proyecto-final/turnos/${slotId}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to save final project member evaluation:', error);
+    return { success: false, error: 'No se pudo guardar la evaluación.' };
   }
 }
 

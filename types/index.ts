@@ -6,7 +6,7 @@ export interface BaseModel {
   collectionName: string;
 }
 
-export type UserRole = 'admin' | 'docente' | 'estudiante';
+export type UserRole = 'admin' | 'docente' | 'docente_invitado' | 'estudiante';
 
 export interface User extends BaseModel {
   username: string;
@@ -110,6 +110,31 @@ export interface FinalProjectTeamResource extends BaseModel {
   expand?: {
     team?: Team;
     submittedBy?: User;
+  };
+}
+
+export type FinalProjectMemberEvaluationRating =
+  | 'excellent'
+  | 'very_good'
+  | 'good'
+  | 'regular'
+  | 'insufficient';
+
+export interface FinalProjectMemberEvaluation extends BaseModel {
+  slot: string;
+  team: string;
+  student: string;
+  evaluatedBy: string;
+  present: boolean;
+  exposed: boolean;
+  rating?: FinalProjectMemberEvaluationRating;
+  notes?: string;
+  evaluatedAt: string;
+  expand?: {
+    slot?: FinalProjectPresentationSlot;
+    team?: Team;
+    student?: User;
+    evaluatedBy?: User;
   };
 }
 

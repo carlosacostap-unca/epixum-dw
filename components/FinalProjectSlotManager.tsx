@@ -11,6 +11,7 @@ interface FinalProjectSlotManagerProps {
   slots: FinalProjectPresentationSlot[];
   teams: Team[];
   students: User[];
+  canManageSlots?: boolean;
 }
 
 function formatSlotDate(value: string) {
@@ -23,7 +24,7 @@ function formatSlotDate(value: string) {
   }).format(new Date(value));
 }
 
-export default function FinalProjectSlotManager({ slots, teams, students }: FinalProjectSlotManagerProps) {
+export default function FinalProjectSlotManager({ slots, teams, students, canManageSlots = true }: FinalProjectSlotManagerProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [pendingKey, setPendingKey] = useState<string | null>(null);
@@ -80,27 +81,29 @@ export default function FinalProjectSlotManager({ slots, teams, students }: Fina
         </div>
       )}
 
-      <form id="create-final-project-slot-form" action={handleCreateSlot} className="grid gap-4 border-b border-zinc-200 p-6 dark:border-zinc-800 sm:grid-cols-[1fr_auto] sm:items-end">
-        <div>
-          <label htmlFor="slot-starts-at" className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
-            Inicio del turno
-          </label>
-          <input
-            id="slot-starts-at"
-            name="startsAt"
-            type="datetime-local"
-            required
-            className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={isPending && pendingKey === "create-slot"}
-          className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-        >
-          {isPending && pendingKey === "create-slot" ? "Creando..." : "Crear turno"}
-        </button>
-      </form>
+      {canManageSlots && (
+        <form id="create-final-project-slot-form" action={handleCreateSlot} className="grid gap-4 border-b border-zinc-200 p-6 dark:border-zinc-800 sm:grid-cols-[1fr_auto] sm:items-end">
+          <div>
+            <label htmlFor="slot-starts-at" className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+              Inicio del turno
+            </label>
+            <input
+              id="slot-starts-at"
+              name="startsAt"
+              type="datetime-local"
+              required
+              className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-zinc-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={isPending && pendingKey === "create-slot"}
+            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+          >
+            {isPending && pendingKey === "create-slot" ? "Creando..." : "Crear turno"}
+          </button>
+        </form>
+      )}
 
       {slots.length > 0 ? (
         <div className="overflow-x-auto">

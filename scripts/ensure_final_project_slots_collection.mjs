@@ -133,6 +133,14 @@ const selectField = (name, values, required = false) => ({
   maxSelect: 1,
 });
 
+const boolField = (name) => ({
+  type: 'bool',
+  name,
+  required: false,
+  presentable: false,
+  hidden: false,
+});
+
 const fileField = (name, required = false) => ({
   type: 'file',
   name,
@@ -185,6 +193,8 @@ if (!teamsCollection || !usersCollection) {
 }
 
 const teacherOrAdmin = '@request.auth.role = "docente" || @request.auth.role = "admin"';
+const finalProjectEvaluator =
+  `${teacherOrAdmin} || @request.auth.role = "docente_invitado"`;
 const authenticated = '@request.auth.id != ""';
 const indexes = [
   'CREATE UNIQUE INDEX `idx_final_project_slots_start` ON `final_project_presentation_slots` (`startsAt`)',
@@ -197,6 +207,29 @@ const reservationIndexes = [
 const resourceIndexes = [
   'CREATE UNIQUE INDEX `idx_final_project_team_resources_team_key` ON `final_project_team_resources` (`team`, `resourceKey`)',
 ];
+const memberEvaluationRatings = ['excellent', 'very_good', 'good', 'regular', 'insufficient'];
+const memberEvaluationIndexes = [
+  'CREATE UNIQUE INDEX `idx_final_project_member_evaluations_unique` ON `final_project_member_evaluations` (`slot`, `student`, `evaluatedBy`)',
+  'CREATE INDEX `idx_final_project_member_evaluations_team` ON `final_project_member_evaluations` (`team`)',
+];
+
+await ensureCollectionFields(pb, 'users', (fields) => {
+  return fields.map((field) => {
+    if (field.name !== 'role' || field.type !== 'select') {
+      return field;
+    }
+
+    const values = field.values || [];
+    if (values.includes('docente_invitado')) {
+      return field;
+    }
+
+    return {
+      ...field,
+      values: [...values, 'docente_invitado'],
+    };
+  });
+});
 
 await ensureCollection(pb, {
   name: 'final_project_presentation_slots',
@@ -380,5 +413,69 @@ await ensureCollectionFields(pb, 'final_project_team_resources', (fields) => {
 });
 
 await ensureCollectionIndexes(pb, 'final_project_team_resources', resourceIndexes);
+
+await ensureCollection(pb, {
+  name: 'final_project_member_evaluations',
+  type: 'base',
+  listRule: finalProjectEvaluator,
+  viewRule: finalProjectEvaluator,
+  createRule: finalProjectEvaluator,
+  updateRule: finalProjectEvaluator,
+  deleteRule: teacherOrAdmin,
+  fields: [
+    relationField('slot', slotsCollection.id, true),
+    relationField('team', teamsCollection.id, true),
+    relationField('student', usersCollection.id, true),
+    relationField('evaluatedBy', usersCollection.id, true),
+    boolField('present'),
+    boolField('exposed'),
+    selectField('rating', memberEvaluationRatings),
+    textField('notes'),
+    dateField('evaluatedAt', true),
+  ],
+  indexes: memberEvaluationIndexes,
+});
+
+await ensureCollectionRules(pb, 'final_project_member_evaluations', {
+  listRule: finalProjectEvaluator,
+  viewRule: finalProjectEvaluator,
+  createRule: finalProjectEvaluator,
+  updateRule: finalProjectEvaluator,
+  deleteRule: teacherOrAdmin,
+});
+
+await ensureCollectionFields(pb, 'final_project_member_evaluations', (fields) => {
+  const nextFields = [...fields];
+  if (!nextFields.some((field) => field.name === 'slot')) {
+    nextFields.push(relationField('slot', slotsCollection.id, true));
+  }
+  if (!nextFields.some((field) => field.name === 'team')) {
+    nextFields.push(relationField('team', teamsCollection.id, true));
+  }
+  if (!nextFields.some((field) => field.name === 'student')) {
+    nextFields.push(relationField('student', usersCollection.id, true));
+  }
+  if (!nextFields.some((field) => field.name === 'evaluatedBy')) {
+    nextFields.push(relationField('evaluatedBy', usersCollection.id, true));
+  }
+  if (!nextFields.some((field) => field.name === 'present')) {
+    nextFields.push(boolField('present'));
+  }
+  if (!nextFields.some((field) => field.name === 'exposed')) {
+    nextFields.push(boolField('exposed'));
+  }
+  if (!nextFields.some((field) => field.name === 'rating')) {
+    nextFields.push(selectField('rating', memberEvaluationRatings));
+  }
+  if (!nextFields.some((field) => field.name === 'notes')) {
+    nextFields.push(textField('notes'));
+  }
+  if (!nextFields.some((field) => field.name === 'evaluatedAt')) {
+    nextFields.push(dateField('evaluatedAt', true));
+  }
+  return nextFields;
+});
+
+await ensureCollectionIndexes(pb, 'final_project_member_evaluations', memberEvaluationIndexes);
 
 console.log('Final project presentation slots collection is ready.');
