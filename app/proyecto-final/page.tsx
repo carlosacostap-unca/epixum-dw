@@ -26,6 +26,10 @@ export default async function FinalProjectPage() {
   const assignedStudentIds = new Set(members.map((member) => member.student).filter(Boolean));
   const unresolvedResponses = validationResponses.filter((response) => !response.resolvedAt);
   const reservedSlots = slots.filter((slot) => slot.team);
+  const reservedTeamIds = new Set(reservedSlots.map((slot) => slot.team).filter(Boolean));
+  const teamsWithoutSlot = teams
+    .filter((team) => !reservedTeamIds.has(team.id))
+    .sort((a, b) => a.name.localeCompare(b.name, "es"));
   const canManageProject = isTeacherRole(user.role);
 
   return (
@@ -67,9 +71,31 @@ export default async function FinalProjectPage() {
             <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Solicitudes pendientes</p>
             <p className="mt-2 text-3xl font-bold text-zinc-900 dark:text-zinc-100">{unresolvedResponses.length}</p>
           </div>
-          <div className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div
+            className="group relative rounded-xl border border-zinc-200 bg-white p-5 shadow-sm outline-none transition-colors hover:border-blue-300 focus:border-blue-300 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-blue-700 dark:focus:border-blue-700"
+            tabIndex={0}
+            aria-describedby="teams-without-slot-tooltip"
+          >
             <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Turnos reservados</p>
             <p className="mt-2 text-3xl font-bold text-zinc-900 dark:text-zinc-100">{reservedSlots.length}/{slots.length}</p>
+            <div
+              id="teams-without-slot-tooltip"
+              role="tooltip"
+              className="pointer-events-none absolute left-0 top-full z-20 mt-2 hidden w-72 rounded-lg border border-zinc-200 bg-white p-3 text-sm text-zinc-700 shadow-xl group-hover:block group-focus:block dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200"
+            >
+              <p className="font-semibold text-zinc-900 dark:text-zinc-100">Equipos sin turno solicitado</p>
+              {teamsWithoutSlot.length > 0 ? (
+                <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+                  {teamsWithoutSlot.map((team) => (
+                    <li key={team.id} className="leading-5">
+                      {team.name}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-zinc-500 dark:text-zinc-400">Todos los equipos solicitaron turno.</p>
+              )}
+            </div>
           </div>
         </section>
 
