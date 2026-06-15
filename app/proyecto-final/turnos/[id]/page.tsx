@@ -69,7 +69,7 @@ export default async function FinalProjectSlotPage({ params }: FinalProjectSlotP
   }
 
   const team = slot.team ? teams.find((candidate) => candidate.id === slot.team) : null;
-  const reservedBy = slot.reservedBy ? students.find((student) => student.id === slot.reservedBy) : null;
+  const reservedBy = slot.expand?.reservedBy || (slot.reservedBy ? students.find((student) => student.id === slot.reservedBy) : null);
   const isReserved = Boolean(slot.team);
   const teamMembers = team
     ? members

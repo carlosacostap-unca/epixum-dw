@@ -33,7 +33,7 @@ export default function FinalProjectSlotManager({ slots, teams, students, canMan
   const [error, setError] = useState<string | null>(null);
 
   const teamById = useMemo(() => new Map(teams.map((team) => [team.id, team])), [teams]);
-  const studentById = useMemo(() => new Map(students.map((student) => [student.id, student])), [students]);
+  const userById = useMemo(() => new Map(students.map((student) => [student.id, student])), [students]);
   const teamsWithoutSlot = useMemo(() => {
     const reservedTeamIds = new Set(slots.map((slot) => slot.team).filter(Boolean));
     return teams
@@ -132,7 +132,7 @@ export default function FinalProjectSlotManager({ slots, teams, students, canMan
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
               {slots.map((slot) => {
                 const team = slot.team ? teamById.get(slot.team) : null;
-                const reservedBy = slot.reservedBy ? studentById.get(slot.reservedBy) : null;
+                const reservedBy = slot.expand?.reservedBy || (slot.reservedBy ? userById.get(slot.reservedBy) : null);
                 const isReserved = Boolean(slot.team);
 
                 return (
