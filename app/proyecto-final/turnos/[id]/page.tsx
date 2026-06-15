@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import FinalProjectMemberEvaluationForm from "@/components/FinalProjectMemberEvaluationForm";
 import FinalProjectSlotDetailActions from "@/components/FinalProjectSlotDetailActions";
 import FinalProjectTeamResourceDeleteButton from "@/components/FinalProjectTeamResourceDeleteButton";
+import FormattedDate from "@/components/FormattedDate";
 import { FINAL_PROJECT_RESOURCE_DEFINITIONS } from "@/lib/final-project-resources";
 import {
   getFinalProjectMemberEvaluations,
@@ -21,15 +22,13 @@ interface FinalProjectSlotPageProps {
   params: Promise<{ id: string }>;
 }
 
-function formatSlotDate(value: string) {
-  return new Intl.DateTimeFormat("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
+const slotDateTimeFormatOptions: Intl.DateTimeFormatOptions = {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+};
 
 function formatStudentName(student?: User | null) {
   if (!student) {
@@ -105,8 +104,12 @@ export default async function FinalProjectSlotPage({ params }: FinalProjectSlotP
           <div className="flex flex-col gap-4 border-b border-zinc-200 pb-5 dark:border-zinc-800 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Inicio</p>
-              <h2 className="mt-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">{formatSlotDate(slot.startsAt)}</h2>
-              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Finaliza: {formatSlotDate(slot.endsAt)}</p>
+              <h2 className="mt-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                <FormattedDate date={slot.startsAt} locale="es-AR" options={slotDateTimeFormatOptions} />
+              </h2>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                Finaliza: <FormattedDate date={slot.endsAt} locale="es-AR" options={slotDateTimeFormatOptions} />
+              </p>
             </div>
             <span className={`inline-flex w-fit rounded-full px-3 py-1 text-sm font-medium ${
               isReserved
@@ -129,7 +132,9 @@ export default async function FinalProjectSlotPage({ params }: FinalProjectSlotP
             </div>
             <div>
               <dt className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Fecha de reserva</dt>
-              <dd className="mt-1 text-zinc-900 dark:text-zinc-100">{slot.reservedAt ? formatSlotDate(slot.reservedAt) : "-"}</dd>
+              <dd className="mt-1 text-zinc-900 dark:text-zinc-100">
+                {slot.reservedAt ? <FormattedDate date={slot.reservedAt} locale="es-AR" options={slotDateTimeFormatOptions} /> : "-"}
+              </dd>
             </div>
           </dl>
 
@@ -207,7 +212,8 @@ export default async function FinalProjectSlotPage({ params }: FinalProjectSlotP
                         </div>
                         {resource?.submittedAt && (
                           <p className="mt-1 text-zinc-500 dark:text-zinc-400">
-                            {submittedByName ? `Subido por ${submittedByName}` : "Subido"} · {formatSlotDate(resource.submittedAt)}
+                            {submittedByName ? `Subido por ${submittedByName}` : "Subido"} ·{" "}
+                            <FormattedDate date={resource.submittedAt} locale="es-AR" options={slotDateTimeFormatOptions} />
                           </p>
                         )}
                       </div>
