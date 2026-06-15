@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  assignFinalProjectPresentationSlot,
   createFinalProjectPresentationSlot,
 } from "@/lib/actions";
 import { FinalProjectPresentationSlot, Team, User } from "@/types";
@@ -33,6 +34,12 @@ export default function FinalProjectSlotManager({ slots, teams, students, canMan
 
   const teamById = useMemo(() => new Map(teams.map((team) => [team.id, team])), [teams]);
   const studentById = useMemo(() => new Map(students.map((student) => [student.id, student])), [students]);
+  const teamsWithoutSlot = useMemo(() => {
+    const reservedTeamIds = new Set(slots.map((slot) => slot.team).filter(Boolean));
+    return teams
+      .filter((team) => !reservedTeamIds.has(team.id))
+      .sort((a, b) => a.name.localeCompare(b.name, "es"));
+  }, [slots, teams]);
 
   function runAction(key: string, action: () => Promise<{ success: boolean; error?: string }>, onSuccess?: () => void) {
     setPendingKey(key);
@@ -57,6 +64,10 @@ export default function FinalProjectSlotManager({ slots, teams, students, canMan
       const form = document.getElementById("create-final-project-slot-form") as HTMLFormElement | null;
       form?.reset();
     });
+  }
+
+  function handleAssignSlot(slotId: string, formData: FormData) {
+    runAction(`assign-slot-${slotId}`, () => assignFinalProjectPresentationSlot(slotId, formData));
   }
 
   return (
@@ -115,6 +126,7 @@ export default function FinalProjectSlotManager({ slots, teams, students, canMan
                 <th className="px-6 py-3">Estado</th>
                 <th className="px-6 py-3">Equipo</th>
                 <th className="px-6 py-3">Reservado por</th>
+                {canManageSlots && <th className="px-6 py-3">Asignar</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -149,6 +161,44 @@ export default function FinalProjectSlotManager({ slots, teams, students, canMan
                     </td>
                     <td className="px-6 py-4">{team?.name || "-"}</td>
                     <td className="px-6 py-4">{reservedBy?.name || reservedBy?.email || "-"}</td>
+                    {canManageSlots && (
+                      <td className="px-6 py-4">
+                        {!isReserved ? (
+                          <form
+                            action={(formData) => handleAssignSlot(slot.id, formData)}
+                            onClick={(event) => event.stopPropagation()}
+                            onKeyDown={(event) => event.stopPropagation()}
+                            className="flex min-w-72 items-center gap-2"
+                          >
+                            <select
+                              name="teamId"
+                              required
+                              disabled={teamsWithoutSlot.length === 0 || (isPending && pendingKey === `assign-slot-${slot.id}`)}
+                              defaultValue=""
+                              className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                            >
+                              <option value="" disabled>
+                                Seleccionar equipo
+                              </option>
+                              {teamsWithoutSlot.map((availableTeam) => (
+                                <option key={availableTeam.id} value={availableTeam.id}>
+                                  {availableTeam.name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="submit"
+                              disabled={teamsWithoutSlot.length === 0 || (isPending && pendingKey === `assign-slot-${slot.id}`)}
+                              className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                            >
+                              {isPending && pendingKey === `assign-slot-${slot.id}` ? "Asignando..." : "Asignar"}
+                            </button>
+                          </form>
+                        ) : (
+                          <span className="text-zinc-400">-</span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })}

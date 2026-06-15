@@ -564,6 +564,67 @@ export async function reserveFinalProjectPresentationSlot(slotId: string) {
   }
 }
 
+export async function assignFinalProjectPresentationSlot(slotId: string, formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { id?: string; role?: unknown } | null;
+
+  if (!user?.id || !canManageTeams(user)) {
+    return { success: false, error: 'Solo los docentes pueden asignar turnos.' };
+  }
+
+  const teamId = String(formData.get('teamId') || '').trim();
+  if (!teamId) {
+    return { success: false, error: 'Selecciona un equipo para asignar el turno.' };
+  }
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    const existingReservation = await getReservedSlotForTeam(dataPb, teamId);
+    if (existingReservation) {
+      return { success: false, error: 'Ese equipo ya tiene un turno reservado.' };
+    }
+
+    const slot = await dataPb.collection('final_project_presentation_slots').getOne<FinalProjectPresentationSlot>(slotId);
+    const reservation = await getFinalProjectSlotReservation(dataPb, slotId);
+
+    if (reservation?.team || slot.team) {
+      return { success: false, error: 'Ese turno ya fue reservado por otro equipo.' };
+    }
+
+    const reservedAt = new Date().toISOString();
+
+    try {
+      await dataPb.collection('final_project_slot_reservations').create({
+        slot: slotId,
+        team: teamId,
+        reservedBy: user.id,
+        reservedAt,
+      });
+    } catch (error) {
+      console.error('Failed to create teacher-assigned final project slot reservation:', error);
+      return { success: false, error: 'No se pudo asignar el turno. Verifica que siga disponible.' };
+    }
+
+    try {
+      await dataPb.collection('final_project_presentation_slots').update(slotId, {
+        team: teamId,
+        reservedBy: user.id,
+        reservedAt,
+      });
+    } catch (error) {
+      console.error('Failed to sync teacher-assigned final project slot reservation:', error);
+    }
+
+    revalidatePath('/proyecto-final');
+    revalidatePath(`/proyecto-final/turnos/${slotId}`);
+    revalidatePath('/mi-equipo');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to assign final project presentation slot:', error);
+    return { success: false, error: 'No se pudo asignar el turno.' };
+  }
+}
+
 export async function cancelFinalProjectPresentationSlotReservation(slotId: string) {
   const pb = await createServerClient();
   const user = pb.authStore.model as { id?: string; role?: unknown } | null;
