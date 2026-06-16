@@ -151,6 +151,14 @@ export default async function Home() {
                   <p className="text-zinc-500 dark:text-zinc-400">Consulta los datos de cursada y calificaciones de los estudiantes.</p>
               </Link>
 
+              <Link href="/equivalencias-diplomatura" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-emerald-500 hover:shadow-md transition-all group">
+                  <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12.75L11.25 15 15 9.75M12 21a9 9 0 100-18 9 9 0 000 18z" /></svg>
+                  </div>
+                  <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Equivalencias Diplomatura</h2>
+                  <p className="text-zinc-500 dark:text-zinc-400">Lista estudiantes con el modulo de diseno web aprobado por equivalencia.</p>
+              </Link>
+
               <Link href="/equipos" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-teal-500 hover:shadow-md transition-all group">
                   <div className="w-12 h-12 bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.86 6.86 0 016 18.75l.001-.032m11.999 0A5.971 5.971 0 0012 13.5a5.971 5.971 0 00-6 5.218m12 0a8.962 8.962 0 01-6 2.282 8.962 8.962 0 01-6-2.282m0 0A5.971 5.971 0 0112 13.5m0 0a3 3 0 100-6 3 3 0 000 6zm6-3.75a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-12 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z" /></svg>

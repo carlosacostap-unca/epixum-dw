@@ -7,6 +7,7 @@ export interface BaseModel {
 }
 
 export type UserRole = 'admin' | 'docente' | 'docente_invitado' | 'estudiante';
+export type WebDesignModuleEquivalenceStatus = 'confirmed' | 'doubtful' | 'dismissed';
 
 export interface User extends BaseModel {
   username: string;
@@ -19,6 +20,7 @@ export interface User extends BaseModel {
   phone?: string;
   enrollmentId?: string;
   approvedWebDesignModule?: boolean;
+  webDesignModuleEquivalenceStatus?: WebDesignModuleEquivalenceStatus;
   avatar?: string;
   role: UserRole;
 }

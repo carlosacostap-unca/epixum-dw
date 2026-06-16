@@ -829,6 +829,20 @@ export async function getPartialExamSimulationReport(partialExamId: string) {
   };
 }
 
+export async function getAllPartialExamSimulations() {
+  const pb = await createServerClient();
+
+  try {
+    return await pb.collection('partial_exam_simulations').getFullList<PartialExamSimulation>({
+      sort: '-completedAt',
+      expand: 'student,partialExam,turn',
+    });
+  } catch (error) {
+    console.error('Error fetching all partial exam simulations:', error);
+    return [];
+  }
+}
+
 export async function getLinks(parentId: string, parentType: 'class' | 'assignment' = 'class') {
   const pb = await createServerClient();
   const records = await pb.collection('links').getFullList<Link>({

@@ -18,6 +18,8 @@ Para que la aplicación funcione correctamente, necesitas crear las siguientes c
 - **enrollmentId**: Text (Matrícula Universitaria)
 - **birthDate**: Date
 - **phone**: Text
+- **approvedWebDesignModule**: Bool (declaracion del alumno: aprobo el modulo de diseno web en la diplomatura en desarrollo web fullstack con JavaScript)
+- **webDesignModuleEquivalenceStatus**: Select (options: "confirmed", "doubtful", "dismissed"). Estado de revision docente para la equivalencia; si esta vacio, la aplicacion lo trata como "doubtful".
   - Esto permitirá identificar los permisos de cada usuario.
 
 ### API Rules (Reglas de Acceso)

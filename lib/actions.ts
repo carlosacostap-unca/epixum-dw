@@ -8,7 +8,7 @@ import {
   generateMultipleChoiceQuestionsFromUnitDocument,
   generateMultipleChoiceQuestionsFromUnitPrompt,
 } from "./ai";
-import {
+import type {
   Assignment,
   PartialExam,
   PartialExamAttempt,
@@ -22,6 +22,7 @@ import {
   FinalProjectPresentationSlotReservation,
   TeamMember,
   TeamValidationStatus,
+  WebDesignModuleEquivalenceStatus,
 } from "@/types";
 import PocketBase from "pocketbase";
 import { getDeliveryLimitDate } from "./delivery-deadlines";
@@ -361,6 +362,50 @@ export async function updateUserRole(userId: string, role: string) {
   } catch (error) {
     console.error('Failed to update role:', error);
     return { success: false, error: 'Failed to update role' };
+  }
+}
+
+const webDesignModuleEquivalenceStatuses: WebDesignModuleEquivalenceStatus[] = ['confirmed', 'doubtful', 'dismissed'];
+
+export async function updateDiplomaEquivalenceStatus(studentId: string, status: WebDesignModuleEquivalenceStatus) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { role?: unknown } | null;
+
+  if (!isTeacherRole(user?.role)) {
+    return { success: false, error: 'Solo los docentes pueden revisar equivalencias.' };
+  }
+
+  if (!webDesignModuleEquivalenceStatuses.includes(status)) {
+    return { success: false, error: 'Estado de equivalencia invalido.' };
+  }
+
+  try {
+    const adminPb = await createAdministrativeClient(pb);
+    const student = await adminPb.collection('users').getOne(studentId, {
+      fields: 'id,role,approvedWebDesignModule',
+    });
+
+    if (student.role !== 'estudiante') {
+      return { success: false, error: 'El usuario seleccionado no es estudiante.' };
+    }
+
+    if (!student.approvedWebDesignModule) {
+      return { success: false, error: 'El estudiante no declaro la equivalencia de la diplomatura.' };
+    }
+
+    await adminPb.collection('users').update(studentId, {
+      webDesignModuleEquivalenceStatus: status,
+    });
+
+    revalidatePath('/equivalencias-diplomatura');
+    revalidatePath('/course-dashboard');
+    revalidatePath('/students');
+    revalidatePath(`/students/${studentId}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update diploma equivalence status:', error);
+    return { success: false, error: 'No se pudo actualizar la equivalencia.' };
   }
 }
 
