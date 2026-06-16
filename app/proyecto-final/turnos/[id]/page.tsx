@@ -29,6 +29,7 @@ const slotDateTimeFormatOptions: Intl.DateTimeFormatOptions = {
   hour: "2-digit",
   minute: "2-digit",
 };
+const finalProjectMeetUrl = "https://meet.google.com/qgt-hftr-qum";
 
 function formatStudentName(student?: User | null) {
   if (!student) {
@@ -137,6 +138,17 @@ export default async function FinalProjectSlotPage({ params }: FinalProjectSlotP
               </dd>
             </div>
           </dl>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <a
+              href={finalProjectMeetUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex w-fit items-center rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Ingresar a Meet
+            </a>
+          </div>
 
           {canManageProject && <FinalProjectSlotDetailActions slot={slot} />}
         </section>
