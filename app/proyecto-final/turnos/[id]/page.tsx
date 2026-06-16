@@ -7,11 +7,22 @@ import FinalProjectTeamResourceDeleteButton from "@/components/FinalProjectTeamR
 import FormattedDate from "@/components/FormattedDate";
 import { FINAL_PROJECT_RESOURCE_DEFINITIONS } from "@/lib/final-project-resources";
 import {
+  getAllAssignments,
+  getAllDeliveries,
+  getAllPartialExamSimulations,
+  getAllPartialExams,
   getFinalProjectMemberEvaluations,
   getFinalProjectPresentationSlot,
   getFinalProjectTeamResources,
   getTeamOverview,
 } from "@/lib/data";
+import {
+  buildLatestPartialExamSimulations,
+  buildStudentCourseStatuses,
+  courseStateStyles,
+  formatGrade,
+  type StudentCourseStatus,
+} from "@/lib/course-status";
 import { getCurrentUser } from "@/lib/pocketbase-server";
 import { isFinalProjectEvaluatorRole, isTeacherRole } from "@/lib/roles";
 import { FinalProjectTeamResource, User } from "@/types";
@@ -48,6 +59,23 @@ function getResourceFileUrl(resource: FinalProjectTeamResource) {
   return `${pbUrl}/api/files/${resource.collectionId}/${resource.id}/${resource.file}`;
 }
 
+function CourseStateBadge({ status }: { status?: StudentCourseStatus }) {
+  if (!status) {
+    return <span className="text-zinc-500 dark:text-zinc-400">Sin datos</span>;
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-medium ${courseStateStyles[status.courseState]}`}>
+        {status.courseState}
+      </span>
+      <span className="text-xs text-zinc-500 dark:text-zinc-400">
+        {status.approvedCount} TPs · Mejor parcial {formatGrade(status.partialExamBestGrade)}
+      </span>
+    </div>
+  );
+}
+
 export default async function FinalProjectSlotPage({ params }: FinalProjectSlotPageProps) {
   const user = await getCurrentUser();
 
@@ -79,12 +107,30 @@ export default async function FinalProjectSlotPage({ params }: FinalProjectSlotP
         .filter((student): student is User => Boolean(student))
         .sort((a, b) => formatStudentName(a).localeCompare(formatStudentName(b), "es"))
     : [];
-  const [resources, memberEvaluations] = await Promise.all([
+  const canManageProject = isTeacherRole(user.role);
+  const [resources, memberEvaluations, courseStatusByStudentId] = await Promise.all([
     team ? getFinalProjectTeamResources(team.id) : [],
     team ? getFinalProjectMemberEvaluations(slot.id) : [],
+    canManageProject && teamMembers.length > 0
+      ? Promise.all([
+          getAllAssignments(),
+          getAllDeliveries(),
+          getAllPartialExams(),
+          getAllPartialExamSimulations(),
+        ]).then(([assignments, deliveries, partialExams, partialExamSimulations]) => {
+          const latestPartialExamSimulations = buildLatestPartialExamSimulations(partialExamSimulations);
+          const statuses = buildStudentCourseStatuses(
+            teamMembers,
+            assignments,
+            deliveries,
+            partialExams,
+            latestPartialExamSimulations,
+          );
+          return new Map(statuses.map((status) => [status.student.id, status]));
+        })
+      : Promise.resolve(new Map<string, StudentCourseStatus>()),
   ]);
   const resourceByKey = new Map(resources.map((resource) => [resource.resourceKey, resource]));
-  const canManageProject = isTeacherRole(user.role);
 
   return (
     <main className="container mx-auto min-h-screen p-8">
@@ -167,15 +213,17 @@ export default async function FinalProjectSlotPage({ params }: FinalProjectSlotP
 
               {teamMembers.length > 0 ? (
                 <div className="mt-4 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
-                  <div className="grid grid-cols-1 bg-zinc-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400 sm:grid-cols-2">
+                  <div className={`grid grid-cols-1 bg-zinc-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400 ${canManageProject ? "sm:grid-cols-[1fr_1fr_1.2fr]" : "sm:grid-cols-2"}`}>
                     <span>Nombre</span>
                     <span>Email</span>
+                    {canManageProject && <span>Estado cursada</span>}
                   </div>
                   <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
                     {teamMembers.map((student) => (
-                      <li key={student.id} className="grid grid-cols-1 gap-1 px-4 py-3 text-sm sm:grid-cols-2 sm:items-center">
+                      <li key={student.id} className={`grid grid-cols-1 gap-2 px-4 py-3 text-sm sm:items-center ${canManageProject ? "sm:grid-cols-[1fr_1fr_1.2fr]" : "sm:grid-cols-2"}`}>
                         <span className="font-medium text-zinc-900 dark:text-zinc-100">{formatStudentName(student) || "Sin nombre"}</span>
                         <span className="text-zinc-600 dark:text-zinc-400">{student.email || "Sin email"}</span>
+                        {canManageProject && <CourseStateBadge status={courseStatusByStudentId.get(student.id)} />}
                       </li>
                     ))}
                   </ul>
