@@ -409,6 +409,39 @@ export async function updateDiplomaEquivalenceStatus(studentId: string, status: 
   }
 }
 
+export async function updateStudentSiuEnrollment(studentId: string, enrolledInSiu: boolean) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { role?: unknown } | null;
+
+  if (!isTeacherRole(user?.role)) {
+    return { success: false, error: 'Solo los docentes pueden actualizar la inscripcion en SIU.' };
+  }
+
+  try {
+    const adminPb = await createAdministrativeClient(pb);
+    const student = await adminPb.collection('users').getOne(studentId, {
+      fields: 'id,role',
+    });
+
+    if (student.role !== 'estudiante') {
+      return { success: false, error: 'El usuario seleccionado no es estudiante.' };
+    }
+
+    await adminPb.collection('users').update(studentId, {
+      enrolledInSiu,
+    });
+
+    revalidatePath('/students');
+    revalidatePath(`/students/${studentId}`);
+    revalidatePath('/course-dashboard');
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update SIU enrollment:', error);
+    return { success: false, error: 'No se pudo actualizar la inscripcion en SIU.' };
+  }
+}
+
 function canManageTeams(user: { role?: unknown } | null | undefined) {
   return isTeacherRole(user?.role);
 }
