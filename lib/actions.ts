@@ -657,11 +657,6 @@ export async function assignFinalProjectPresentationSlot(slotId: string, formDat
 
   try {
     const dataPb = await createAdministrativeClient(pb);
-    const existingReservation = await getReservedSlotForTeam(dataPb, teamId);
-    if (existingReservation) {
-      return { success: false, error: 'Ese equipo ya tiene un turno reservado.' };
-    }
-
     const slot = await dataPb.collection('final_project_presentation_slots').getOne<FinalProjectPresentationSlot>(slotId);
     const reservation = await getFinalProjectSlotReservation(dataPb, slotId);
 

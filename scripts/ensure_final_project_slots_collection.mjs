@@ -73,19 +73,22 @@ async function ensureCollectionFields(pb, name, updateFields) {
   return updated;
 }
 
-async function ensureCollectionIndexes(pb, name, indexes) {
+async function ensureCollectionIndexes(pb, name, indexes, obsoleteIndexNames = []) {
   const collection = await collectionExists(pb, name);
   if (!collection) return null;
 
   const existingIndexes = collection.indexes || [];
-  const missingIndexes = indexes.filter((index) => !existingIndexes.includes(index));
-  if (missingIndexes.length === 0) {
+  const activeIndexes = existingIndexes.filter((index) => {
+    return !obsoleteIndexNames.some((obsoleteName) => index.includes(obsoleteName));
+  });
+  const missingIndexes = indexes.filter((index) => !activeIndexes.includes(index));
+  if (missingIndexes.length === 0 && activeIndexes.length === existingIndexes.length) {
     console.log(`${name} indexes already up to date`);
     return collection;
   }
 
   const updated = await pb.collections.update(collection.id, {
-    indexes: [...existingIndexes, ...missingIndexes],
+    indexes: [...activeIndexes, ...missingIndexes],
   });
   console.log(`updated ${name} indexes`);
   return updated;
@@ -198,11 +201,9 @@ const finalProjectEvaluator =
 const authenticated = '@request.auth.id != ""';
 const indexes = [
   'CREATE UNIQUE INDEX `idx_final_project_slots_start` ON `final_project_presentation_slots` (`startsAt`)',
-  'CREATE UNIQUE INDEX `idx_final_project_slots_team` ON `final_project_presentation_slots` (`team`) WHERE `team` != ""',
 ];
 const reservationIndexes = [
   'CREATE UNIQUE INDEX `idx_final_project_slot_reservations_slot` ON `final_project_slot_reservations` (`slot`)',
-  'CREATE UNIQUE INDEX `idx_final_project_slot_reservations_team` ON `final_project_slot_reservations` (`team`)',
 ];
 const resourceIndexes = [
   'CREATE UNIQUE INDEX `idx_final_project_team_resources_team_key` ON `final_project_team_resources` (`team`, `resourceKey`)',
@@ -277,7 +278,9 @@ await ensureCollectionFields(pb, 'final_project_presentation_slots', (fields) =>
   return nextFields;
 });
 
-await ensureCollectionIndexes(pb, 'final_project_presentation_slots', indexes);
+await ensureCollectionIndexes(pb, 'final_project_presentation_slots', indexes, [
+  'idx_final_project_slots_team',
+]);
 
 const slotsCollection = await collectionExists(pb, 'final_project_presentation_slots');
 if (!slotsCollection) {
@@ -326,7 +329,9 @@ await ensureCollectionFields(pb, 'final_project_slot_reservations', (fields) => 
   return nextFields;
 });
 
-await ensureCollectionIndexes(pb, 'final_project_slot_reservations', reservationIndexes);
+await ensureCollectionIndexes(pb, 'final_project_slot_reservations', reservationIndexes, [
+  'idx_final_project_slot_reservations_team',
+]);
 
 const [slots, reservations] = await Promise.all([
   pb.collection('final_project_presentation_slots').getFullList({ sort: 'startsAt' }),

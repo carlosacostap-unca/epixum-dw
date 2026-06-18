@@ -102,11 +102,11 @@ export default function StudentFinalProjectSlotReservation({ slots, teamId }: St
     };
   }, []);
 
-  const reservedSlot = useMemo(
-    () => liveSlots.find((slot) => Boolean(teamId && slot.team === teamId)) || null,
+  const reservedSlots = useMemo(
+    () => liveSlots.filter((slot) => Boolean(teamId && slot.team === teamId)),
     [liveSlots, teamId],
   );
-  const reservedByName = formatStudentName(reservedSlot?.expand?.reservedBy);
+  const hasReservedSlot = reservedSlots.length > 0;
 
   function runAction(key: string, action: () => Promise<{ success: boolean; error?: string }>) {
     setPendingKey(key);
@@ -149,17 +149,37 @@ export default function StudentFinalProjectSlotReservation({ slots, teamId }: St
         </div>
       )}
 
-      {reservedSlot && (
+      {hasReservedSlot && (
         <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950/40">
-          <p className="text-sm font-medium text-emerald-900 dark:text-emerald-200">Tu equipo ya tiene un turno reservado</p>
-          <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
-            {formatSlotDate(reservedSlot.startsAt)} a {formatSlotDate(reservedSlot.endsAt)}
+          <p className="text-sm font-medium text-emerald-900 dark:text-emerald-200">
+            {reservedSlots.length === 1 ? "Tu equipo ya tiene un turno reservado" : `Tu equipo tiene ${reservedSlots.length} turnos reservados`}
           </p>
-          {reservedByName && (
-            <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
-              Reservado por: {reservedByName}
-            </p>
-          )}
+          <div className="mt-2 space-y-3">
+            {reservedSlots.map((reservedSlot) => {
+              const reservedByName = formatStudentName(reservedSlot.expand?.reservedBy);
+
+              return (
+                <div key={reservedSlot.id} className="rounded-md border border-emerald-200 bg-white/60 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">
+                  <p className="text-sm text-emerald-800 dark:text-emerald-200">
+                    {formatSlotDate(reservedSlot.startsAt)} a {formatSlotDate(reservedSlot.endsAt)}
+                  </p>
+                  {reservedByName && (
+                    <p className="mt-1 text-sm text-emerald-800 dark:text-emerald-200">
+                      Reservado por: {reservedByName}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => runAction(`cancel-${reservedSlot.id}`, () => cancelFinalProjectPresentationSlotReservation(reservedSlot.id))}
+                    disabled={isPending && pendingKey === `cancel-${reservedSlot.id}`}
+                    className="mt-3 rounded-md border border-emerald-300 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-800 dark:text-emerald-200 dark:hover:bg-emerald-900/40"
+                  >
+                    {isPending && pendingKey === `cancel-${reservedSlot.id}` ? "Cancelando..." : "Cancelar reserva"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <a
               href="https://meet.google.com/qgt-hftr-qum"
@@ -169,14 +189,6 @@ export default function StudentFinalProjectSlotReservation({ slots, teamId }: St
             >
               Ingresar a Meet
             </a>
-            <button
-              type="button"
-              onClick={() => runAction(`cancel-${reservedSlot.id}`, () => cancelFinalProjectPresentationSlotReservation(reservedSlot.id))}
-              disabled={isPending && pendingKey === `cancel-${reservedSlot.id}`}
-              className="rounded-md border border-emerald-300 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-800 dark:text-emerald-200 dark:hover:bg-emerald-900/40"
-            >
-              {isPending && pendingKey === `cancel-${reservedSlot.id}` ? "Cancelando..." : "Cancelar reserva"}
-            </button>
           </div>
         </div>
       )}
@@ -198,7 +210,7 @@ export default function StudentFinalProjectSlotReservation({ slots, teamId }: St
                   <span className="inline-flex w-fit rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
                     Tu reserva
                   </span>
-                ) : isAvailable && reservedSlot ? (
+                ) : isAvailable && hasReservedSlot ? (
                   <span className="inline-flex w-fit rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                     Disponible
                   </span>

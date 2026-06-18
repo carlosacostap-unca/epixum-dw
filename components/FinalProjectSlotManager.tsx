@@ -34,12 +34,10 @@ export default function FinalProjectSlotManager({ slots, teams, students, canMan
 
   const teamById = useMemo(() => new Map(teams.map((team) => [team.id, team])), [teams]);
   const userById = useMemo(() => new Map(students.map((student) => [student.id, student])), [students]);
-  const teamsWithoutSlot = useMemo(() => {
-    const reservedTeamIds = new Set(slots.map((slot) => slot.team).filter(Boolean));
-    return teams
-      .filter((team) => !reservedTeamIds.has(team.id))
-      .sort((a, b) => a.name.localeCompare(b.name, "es"));
-  }, [slots, teams]);
+  const sortedTeams = useMemo(
+    () => [...teams].sort((a, b) => a.name.localeCompare(b.name, "es")),
+    [teams],
+  );
 
   function runAction(key: string, action: () => Promise<{ success: boolean; error?: string }>, onSuccess?: () => void) {
     setPendingKey(key);
@@ -75,7 +73,7 @@ export default function FinalProjectSlotManager({ slots, teams, students, canMan
       <div className="border-b border-zinc-200 px-6 py-4 dark:border-zinc-800">
         <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Turnos de presentación</h2>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Cada turno dura 15 minutos. Los equipos pueden reservar uno de los turnos disponibles.
+          Cada turno dura 15 minutos. Los docentes pueden asignar turnos adicionales a un mismo equipo.
         </p>
       </div>
 
@@ -173,14 +171,14 @@ export default function FinalProjectSlotManager({ slots, teams, students, canMan
                             <select
                               name="teamId"
                               required
-                              disabled={teamsWithoutSlot.length === 0 || (isPending && pendingKey === `assign-slot-${slot.id}`)}
+                              disabled={sortedTeams.length === 0 || (isPending && pendingKey === `assign-slot-${slot.id}`)}
                               defaultValue=""
                               className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                             >
                               <option value="" disabled>
                                 Seleccionar equipo
                               </option>
-                              {teamsWithoutSlot.map((availableTeam) => (
+                              {sortedTeams.map((availableTeam) => (
                                 <option key={availableTeam.id} value={availableTeam.id}>
                                   {availableTeam.name}
                                 </option>
@@ -188,7 +186,7 @@ export default function FinalProjectSlotManager({ slots, teams, students, canMan
                             </select>
                             <button
                               type="submit"
-                              disabled={teamsWithoutSlot.length === 0 || (isPending && pendingKey === `assign-slot-${slot.id}`)}
+                              disabled={sortedTeams.length === 0 || (isPending && pendingKey === `assign-slot-${slot.id}`)}
                               className="rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
                             >
                               {isPending && pendingKey === `assign-slot-${slot.id}` ? "Asignando..." : "Asignar"}
