@@ -151,6 +151,14 @@ export default async function Home() {
                   <p className="text-zinc-500 dark:text-zinc-400">Consulta los datos de cursada y calificaciones de los estudiantes.</p>
               </Link>
 
+              <Link href="/resultados-cursada" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-sky-500 hover:shadow-md transition-all group">
+                  <div className="w-12 h-12 bg-sky-100 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.25 6.75h12M8.25 12h12M8.25 17.25h12M3.75 6.75h.008v.008H3.75V6.75zm0 5.25h.008v.008H3.75V12zm0 5.25h.008v.008H3.75v-.008z" /></svg>
+                  </div>
+                  <h2 className="text-2xl font-bold mb-2 text-zinc-900 dark:text-white">Resultados de Cursada</h2>
+                  <p className="text-zinc-500 dark:text-zinc-400">Lista estudiantes inscriptos en SIU para el cierre de cursada.</p>
+              </Link>
+
               <Link href="/equivalencias-diplomatura" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-emerald-500 hover:shadow-md transition-all group">
                   <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12.75L11.25 15 15 9.75M12 21a9 9 0 100-18 9 9 0 000 18z" /></svg>
