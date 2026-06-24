@@ -242,6 +242,18 @@ function MetricCard({ label, value, detail, tone }: { label: string; value: stri
   );
 }
 
+function SiuEnrollmentBadge({ enrolled }: { enrolled: boolean }) {
+  const styles = enrolled
+    ? "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300"
+    : "bg-zinc-100 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-300";
+
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${styles}`}>
+      {enrolled ? "Si" : "No"}
+    </span>
+  );
+}
+
 function ResultViewSwitch({ activeView }: { activeView: ResultViewMode }) {
   const options: { value: ResultViewMode; label: string; href: string }[] = [
     { value: "siu", label: "Por SIU", href: "/resultados-cursada" },
@@ -278,7 +290,7 @@ function StudentRows({ results }: { results: StudentCourseResult[] }) {
   if (results.length === 0) {
     return (
       <tr>
-        <td colSpan={10} className="px-5 py-8 text-center text-zinc-500 dark:text-zinc-400">
+        <td colSpan={11} className="px-5 py-8 text-center text-zinc-500 dark:text-zinc-400">
           No hay estudiantes en esta categoria.
         </td>
       </tr>
@@ -302,6 +314,9 @@ function StudentRows({ results }: { results: StudentCourseResult[] }) {
       </td>
       <td className="relative px-5 py-4">
         <SourceBadge source={result.source} />
+      </td>
+      <td className="relative px-5 py-4">
+        <SiuEnrollmentBadge enrolled={result.enrolledInSiu} />
       </td>
       <td className="relative px-5 py-4">{result.email || "-"}</td>
       <td className="relative px-5 py-4">{result.enrollmentId || "-"}</td>
@@ -369,11 +384,12 @@ function ResultSection({
         <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{results.length} estudiantes</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1320px] text-left text-sm text-zinc-600 dark:text-zinc-300">
+        <table className="w-full min-w-[1420px] text-left text-sm text-zinc-600 dark:text-zinc-300">
           <thead className="bg-zinc-100 text-xs uppercase text-zinc-500 dark:bg-zinc-800/70 dark:text-zinc-400">
             <tr>
               <th className="px-5 py-3">Estudiante</th>
               <th className="px-5 py-3">Origen</th>
+              <th className="px-5 py-3">Inscripto SIU</th>
               <th className="px-5 py-3">Email</th>
               <th className="px-5 py-3">Matricula</th>
               <th className="px-5 py-3">Equiv. Diplom.</th>
