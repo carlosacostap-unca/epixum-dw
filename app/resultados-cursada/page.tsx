@@ -1,19 +1,45 @@
-import { getAllAssignments, getAllDeliveries, getAllPartialExamSimulations, getStudents } from "@/lib/data";
+import ExternalSiuStudentForm from "@/components/ExternalSiuStudentForm";
+import { deleteExternalSiuStudent } from "@/lib/actions";
+import {
+  getAllAssignments,
+  getAllDeliveries,
+  getAllFinalProjectMemberEvaluations,
+  getAllPartialExamSimulations,
+  getExternalSiuStudents,
+  getStudents,
+} from "@/lib/data";
 import { getCurrentUser } from "@/lib/pocketbase-server";
-import { Delivery, PartialExamSimulation, User } from "@/types";
+import {
+  Delivery,
+  ExternalSiuStudent,
+  FinalProjectMemberEvaluation,
+  FinalProjectMemberEvaluationRating,
+  PartialExamSimulation,
+  User,
+} from "@/types";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 type CourseResult = "Promocionado" | "Regularizado" | "Libre";
+type ResultSource = "platform" | "external-siu";
 
 type StudentCourseResult = {
-  student: User;
+  id: string;
+  displayName: string;
+  email?: string;
+  dni?: string;
+  enrollmentId?: string;
+  enrolledInSiu: boolean;
   result: CourseResult;
+  source: ResultSource;
+  detailHref?: string;
   approvedAssignments: number;
   bestPartialExamGrade: number | null;
   approvedWebDesignModule: boolean;
+  finalProjectEvaluation: FinalProjectMemberEvaluation | null;
+  notes?: string;
 };
 
 const requiredApprovedAssignments = 9;
@@ -25,6 +51,23 @@ const resultStyles: Record<CourseResult, string> = {
   Regularizado: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   Libre: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
 };
+
+const finalProjectRatingLabels: Record<FinalProjectMemberEvaluationRating, string> = {
+  excellent: "Excelente",
+  very_good: "Muy buena",
+  good: "Buena",
+  regular: "Regular",
+  insufficient: "Insuficiente",
+};
+
+async function deleteExternalSiuStudentFormAction(formData: FormData) {
+  "use server";
+  await deleteExternalSiuStudent(formData);
+}
+
+function normalizeMatchValue(value?: string) {
+  return String(value || "").trim().toLowerCase();
+}
 
 function getStudentDisplayName(student: User) {
   return student.name || [student.firstName, student.lastName].filter(Boolean).join(" ") || student.email;
@@ -49,7 +92,32 @@ function formatGrade(value: number | null) {
   return value === null ? "Sin parcial" : value.toLocaleString("es-AR", { maximumFractionDigits: 1 });
 }
 
-function classifyStudent(student: User, approvedAssignments: number, bestPartialExamGrade: number | null): CourseResult {
+function getLatestFinalProjectEvaluations(evaluations: FinalProjectMemberEvaluation[]) {
+  const latestByStudent = new Map<string, FinalProjectMemberEvaluation>();
+
+  for (const evaluation of evaluations) {
+    const current = latestByStudent.get(evaluation.student);
+    if (!current || new Date(evaluation.evaluatedAt).getTime() > new Date(current.evaluatedAt).getTime()) {
+      latestByStudent.set(evaluation.student, evaluation);
+    }
+  }
+
+  return latestByStudent;
+}
+
+function formatFinalProjectEvaluation(evaluation: FinalProjectMemberEvaluation | null) {
+  if (!evaluation) {
+    return "Sin evaluar";
+  }
+
+  const attendance = evaluation.present ? "Presente" : "Ausente";
+  const exposure = evaluation.exposed ? "Expuso" : "No expuso";
+  const rating = evaluation.rating ? finalProjectRatingLabels[evaluation.rating] : "Sin calificacion";
+
+  return `${rating} · ${attendance} · ${exposure}`;
+}
+
+function classifyPlatformStudent(student: User, approvedAssignments: number, bestPartialExamGrade: number | null): CourseResult {
   if (student.approvedWebDesignModule) {
     return "Promocionado";
   }
@@ -72,44 +140,101 @@ function classifyStudent(student: User, approvedAssignments: number, bestPartial
   return "Libre";
 }
 
-function buildStudentResults(
+function hasMatchingPlatformStudent(externalStudent: ExternalSiuStudent, platformStudents: User[]) {
+  const externalEmail = normalizeMatchValue(externalStudent.email);
+  const externalDni = normalizeMatchValue(externalStudent.dni);
+  const externalEnrollmentId = normalizeMatchValue(externalStudent.enrollmentId);
+
+  return platformStudents.some((student) => {
+    const emailMatches = externalEmail && normalizeMatchValue(student.email) === externalEmail;
+    const dniMatches = externalDni && normalizeMatchValue(student.dni) === externalDni;
+    const enrollmentMatches = externalEnrollmentId && normalizeMatchValue(student.enrollmentId) === externalEnrollmentId;
+
+    return emailMatches || dniMatches || enrollmentMatches;
+  });
+}
+
+function buildPlatformStudentResults(
   students: User[],
   assignmentIds: string[],
   deliveries: Delivery[],
   simulations: PartialExamSimulation[],
+  finalProjectEvaluationsByStudent: Map<string, FinalProjectMemberEvaluation>,
 ) {
-  return students
-    .map<StudentCourseResult>((student) => {
-      const studentDeliveries = deliveries.filter((delivery) => {
-        const deliveryStudentId = delivery.student || delivery.expand?.student?.id;
-        return deliveryStudentId === student.id;
-      });
+  return students.map<StudentCourseResult>((student) => {
+    const studentDeliveries = deliveries.filter((delivery) => {
+      const deliveryStudentId = delivery.student || delivery.expand?.student?.id;
+      return deliveryStudentId === student.id;
+    });
 
-      const approvedAssignments = assignmentIds.filter((assignmentId) => {
-        const delivery = getDeliveryForAssignment(studentDeliveries, assignmentId);
-        return delivery?.status === "graded" && delivery.verdict === "Aprobado";
-      }).length;
+    const approvedAssignments = assignmentIds.filter((assignmentId) => {
+      const delivery = getDeliveryForAssignment(studentDeliveries, assignmentId);
+      return delivery?.status === "graded" && delivery.verdict === "Aprobado";
+    }).length;
 
-      const studentPartialExamGrades = simulations
-        .filter((simulation) => simulation.student === student.id)
-        .map(getSimulationGrade);
-      const bestPartialExamGrade = studentPartialExamGrades.length > 0 ? Math.max(...studentPartialExamGrades) : null;
+    const studentPartialExamGrades = simulations
+      .filter((simulation) => simulation.student === student.id)
+      .map(getSimulationGrade);
+    const bestPartialExamGrade = studentPartialExamGrades.length > 0 ? Math.max(...studentPartialExamGrades) : null;
 
-      return {
-        student,
-        approvedAssignments,
-        bestPartialExamGrade,
-        approvedWebDesignModule: Boolean(student.approvedWebDesignModule),
-        result: classifyStudent(student, approvedAssignments, bestPartialExamGrade),
-      };
-    })
-    .sort((a, b) =>
-      getStudentDisplayName(a.student).localeCompare(getStudentDisplayName(b.student), "es", { sensitivity: "base" }),
-    );
+    return {
+      id: student.id,
+      displayName: getStudentDisplayName(student),
+      email: student.email,
+      dni: student.dni,
+      enrollmentId: student.enrollmentId,
+      enrolledInSiu: Boolean(student.enrolledInSiu),
+      approvedAssignments,
+      bestPartialExamGrade,
+      approvedWebDesignModule: Boolean(student.approvedWebDesignModule),
+      finalProjectEvaluation: finalProjectEvaluationsByStudent.get(student.id) || null,
+      result: classifyPlatformStudent(student, approvedAssignments, bestPartialExamGrade),
+      source: "platform",
+      detailHref: `/students/${student.id}`,
+    };
+  });
+}
+
+function buildExternalStudentResults(externalStudents: ExternalSiuStudent[], platformStudents: User[]) {
+  return externalStudents
+    .filter((student) => !hasMatchingPlatformStudent(student, platformStudents))
+    .map<StudentCourseResult>((student) => ({
+      id: student.id,
+      displayName: student.fullName,
+      email: student.email,
+      dni: student.dni,
+      enrollmentId: student.enrollmentId,
+      enrolledInSiu: true,
+      approvedAssignments: 0,
+      bestPartialExamGrade: null,
+      approvedWebDesignModule: false,
+      finalProjectEvaluation: null,
+      result: "Libre",
+      source: "external-siu",
+      notes: student.notes,
+    }));
+}
+
+function sortStudentResults(results: StudentCourseResult[]) {
+  return [...results].sort((a, b) =>
+    a.displayName.localeCompare(b.displayName, "es", { sensitivity: "base" }),
+  );
 }
 
 function ResultBadge({ result }: { result: CourseResult }) {
   return <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${resultStyles[result]}`}>{result}</span>;
+}
+
+function SourceBadge({ source }: { source: ResultSource }) {
+  const styles = source === "platform"
+    ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+    : "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300";
+
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${styles}`}>
+      {source === "platform" ? "Usuario plataforma" : "SIU sin usuario"}
+    </span>
+  );
 }
 
 function WebDesignModuleBadge({ approved }: { approved: boolean }) {
@@ -141,7 +266,7 @@ function StudentRows({ results }: { results: StudentCourseResult[] }) {
   if (results.length === 0) {
     return (
       <tr>
-        <td colSpan={7} className="px-5 py-8 text-center text-zinc-500 dark:text-zinc-400">
+        <td colSpan={8} className="px-5 py-8 text-center text-zinc-500 dark:text-zinc-400">
           No hay estudiantes en esta categoria.
         </td>
       </tr>
@@ -149,20 +274,25 @@ function StudentRows({ results }: { results: StudentCourseResult[] }) {
   }
 
   return results.map((result) => (
-    <tr key={result.student.id} className="group relative transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
+    <tr key={`${result.source}-${result.id}`} className="group relative transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
       <td className="relative px-5 py-4">
-        <Link
-          href={`/students/${result.student.id}`}
-          className="absolute inset-0 z-10"
-          aria-label={`Ver detalle de ${getStudentDisplayName(result.student)}`}
-        />
-        <span className="font-medium text-blue-600 group-hover:underline dark:text-blue-400">
-          {getStudentDisplayName(result.student)}
+        {result.detailHref && (
+          <Link
+            href={result.detailHref}
+            className="absolute inset-0 z-10"
+            aria-label={`Ver detalle de ${result.displayName}`}
+          />
+        )}
+        <span className={result.detailHref ? "font-medium text-blue-600 group-hover:underline dark:text-blue-400" : "font-medium text-zinc-950 dark:text-zinc-100"}>
+          {result.displayName}
         </span>
+        {result.notes && <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">{result.notes}</p>}
       </td>
-      <td className="relative px-5 py-4">{result.student.email}</td>
-      <td className="relative px-5 py-4">{result.student.dni || "-"}</td>
-      <td className="relative px-5 py-4">{result.student.enrollmentId || "-"}</td>
+      <td className="relative px-5 py-4">
+        <SourceBadge source={result.source} />
+      </td>
+      <td className="relative px-5 py-4">{result.email || "-"}</td>
+      <td className="relative px-5 py-4">{result.enrollmentId || "-"}</td>
       <td className="relative px-5 py-4 font-medium text-zinc-950 dark:text-zinc-100">{result.approvedAssignments}</td>
       <td className="relative px-5 py-4">
         <WebDesignModuleBadge approved={result.approvedWebDesignModule} />
@@ -171,8 +301,20 @@ function StudentRows({ results }: { results: StudentCourseResult[] }) {
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-zinc-950 dark:text-zinc-100">{formatGrade(result.bestPartialExamGrade)}</span>
           <ResultBadge result={result.result} />
+          {result.source === "external-siu" && (
+            <form action={deleteExternalSiuStudentFormAction} className="relative z-20">
+              <input type="hidden" name="externalStudentId" value={result.id} />
+              <button
+                type="submit"
+                className="rounded-md border border-red-200 px-2.5 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 dark:border-red-900 dark:text-red-200 dark:hover:bg-red-950/40"
+              >
+                Quitar
+              </button>
+            </form>
+          )}
         </div>
       </td>
+      <td className="relative px-5 py-4">{formatFinalProjectEvaluation(result.finalProjectEvaluation)}</td>
     </tr>
   ));
 }
@@ -196,16 +338,17 @@ function ResultSection({
         <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{results.length} estudiantes</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[860px] text-left text-sm text-zinc-600 dark:text-zinc-300">
+        <table className="w-full min-w-[1040px] text-left text-sm text-zinc-600 dark:text-zinc-300">
           <thead className="bg-zinc-100 text-xs uppercase text-zinc-500 dark:bg-zinc-800/70 dark:text-zinc-400">
             <tr>
               <th className="px-5 py-3">Estudiante</th>
+              <th className="px-5 py-3">Origen</th>
               <th className="px-5 py-3">Email</th>
-              <th className="px-5 py-3">DNI</th>
               <th className="px-5 py-3">Matricula</th>
               <th className="px-5 py-3">TPs aprobados</th>
               <th className="px-5 py-3">Diseno Web</th>
               <th className="px-5 py-3">Mejor parcial</th>
+              <th className="px-5 py-3">Evaluacion final</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -223,23 +366,28 @@ export default async function ResultadosCursadaPage() {
     redirect("/");
   }
 
-  const [students, assignments, deliveries, partialExamSimulations] = await Promise.all([
+  const [students, assignments, deliveries, partialExamSimulations, externalSiuStudents, finalProjectEvaluations] = await Promise.all([
     getStudents(),
     getAllAssignments(),
     getAllDeliveries(),
     getAllPartialExamSimulations(),
+    getExternalSiuStudents(),
+    getAllFinalProjectMemberEvaluations(),
   ]);
+  const finalProjectEvaluationsByStudent = getLatestFinalProjectEvaluations(finalProjectEvaluations);
 
-  const siuStudents = students.filter((student) => Boolean(student.enrolledInSiu));
-  const studentResults = buildStudentResults(
-    siuStudents,
+  const platformResults = buildPlatformStudentResults(
+    students,
     assignments.map((assignment) => assignment.id),
     deliveries,
     partialExamSimulations,
+    finalProjectEvaluationsByStudent,
   );
-  const promotedStudents = studentResults.filter((result) => result.result === "Promocionado");
-  const regularizedStudents = studentResults.filter((result) => result.result === "Regularizado");
-  const freeStudents = studentResults.filter((result) => result.result === "Libre");
+  const externalResults = buildExternalStudentResults(externalSiuStudents, students);
+  const studentResults = sortStudentResults([...platformResults, ...externalResults]);
+  const siuStudents = studentResults.filter((result) => result.enrolledInSiu);
+  const nonSiuStudents = studentResults.filter((result) => !result.enrolledInSiu);
+  const externalSiuStudentCount = siuStudents.filter((result) => result.source === "external-siu").length;
 
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-6 dark:bg-zinc-950 sm:px-6 lg:px-8">
@@ -254,33 +402,31 @@ export default async function ResultadosCursadaPage() {
           <div className="mt-4">
             <h1 className="text-3xl font-bold text-zinc-950 dark:text-zinc-100">Resultados de Cursada</h1>
             <p className="mt-2 max-w-3xl text-zinc-500 dark:text-zinc-400">
-              Clasificacion de estudiantes inscriptos en SIU segun trabajos practicos aprobados y mejor nota de parcial.
+              Clasificacion de todos los estudiantes, separados por inscripcion SIU y diferenciando usuarios de plataforma de registros SIU sin acceso.
             </p>
           </div>
         </div>
 
-        <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Inscriptos SIU" value={siuStudents.length} detail="Estudiantes considerados para el cierre" tone="bg-sky-500" />
-          <MetricCard label="Promocionados" value={promotedStudents.length} detail="9+ TPs y parcial con 7 o mas, o modulo aprobado" tone="bg-green-500" />
-          <MetricCard label="Regularizados" value={regularizedStudents.length} detail="9+ TPs y parcial entre 4 y 6.9" tone="bg-blue-500" />
-          <MetricCard label="Libres" value={freeStudents.length} detail="Sin condiciones de promocion o regularidad" tone="bg-red-500" />
+        <ExternalSiuStudentForm />
+
+        <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <MetricCard label="Total alumnos" value={studentResults.length} detail="Usuarios y registros SIU externos" tone="bg-zinc-500" />
+          <MetricCard label="Inscriptos SIU" value={siuStudents.length} detail="Con usuario o cargados como externos" tone="bg-sky-500" />
+          <MetricCard label="No inscriptos SIU" value={nonSiuStudents.length} detail="Usuarios estudiantes sin marca SIU" tone="bg-red-500" />
+          <MetricCard label="SIU sin usuario" value={externalSiuStudentCount} detail="Cargados manualmente como libres" tone="bg-amber-500" />
+          <MetricCard label="Usuarios plataforma" value={students.length} detail="Estudiantes registrados en la app" tone="bg-emerald-500" />
         </section>
 
         <div className="grid gap-5">
           <ResultSection
-            title="Estudiantes promocionados"
-            description="Parcial de mayor nota igual o mayor a 7 y al menos 9 trabajos practicos aprobados, o modulo de Diseno Web aprobado en la diplomatura."
-            results={promotedStudents}
+            title="Alumnos inscriptos en el SIU"
+            description="Incluye usuarios estudiantes marcados como inscriptos y registros SIU sin usuario cargados manualmente."
+            results={siuStudents}
           />
           <ResultSection
-            title="Estudiantes regularizados pero no promocionados"
-            description="Parcial de mayor nota igual o mayor a 4 y menor a 7, con al menos 9 trabajos practicos aprobados."
-            results={regularizedStudents}
-          />
-          <ResultSection
-            title="Estudiantes libres"
-            description="Estudiantes inscriptos en SIU que no ingresan en las categorias anteriores."
-            results={freeStudents}
+            title="Alumnos no inscriptos en el SIU"
+            description="Usuarios estudiantes de la plataforma que no tienen marcada la inscripcion en SIU."
+            results={nonSiuStudents}
           />
         </div>
       </div>

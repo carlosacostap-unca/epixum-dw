@@ -1,7 +1,7 @@
 "use server";
 
 import { createServerClient } from "@/lib/pocketbase-server";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { getPresignedUploadUrl, getPresignedDownloadUrl, configureBucketCors } from "./s3";
 import {
   generateAIEvaluation,
@@ -434,11 +434,253 @@ export async function updateStudentSiuEnrollment(studentId: string, enrolledInSi
     revalidatePath('/students');
     revalidatePath(`/students/${studentId}`);
     revalidatePath('/course-dashboard');
+    revalidatePath('/resultados-cursada');
 
     return { success: true };
   } catch (error) {
     console.error('Failed to update SIU enrollment:', error);
     return { success: false, error: 'No se pudo actualizar la inscripcion en SIU.' };
+  }
+}
+
+function normalizeOptionalText(value: FormDataEntryValue | null) {
+  const text = String(value || '').trim();
+  return text.length > 0 ? text : undefined;
+}
+
+function buildExternalSiuStudentDuplicateFilter(pb: PocketBase, data: { email?: string; dni?: string; enrollmentId?: string }) {
+  const filters = [
+    data.email ? pb.filter('email = {:email}', { email: data.email }) : '',
+    data.dni ? pb.filter('dni = {:dni}', { dni: data.dni }) : '',
+    data.enrollmentId ? pb.filter('enrollmentId = {:enrollmentId}', { enrollmentId: data.enrollmentId }) : '',
+  ].filter(Boolean);
+
+  return filters.join(' || ');
+}
+
+export async function createExternalSiuStudent(formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { id?: string; role?: unknown } | null;
+
+  if (!isTeacherRole(user?.role)) {
+    return { success: false, error: 'Solo los docentes pueden cargar inscriptos SIU externos.' };
+  }
+
+  const fullName = normalizeOptionalText(formData.get('fullName'));
+  const email = normalizeOptionalText(formData.get('email'))?.toLowerCase();
+  const dni = normalizeOptionalText(formData.get('dni'));
+  const enrollmentId = normalizeOptionalText(formData.get('enrollmentId'));
+  const notes = normalizeOptionalText(formData.get('notes'));
+
+  if (!fullName) {
+    return { success: false, error: 'Ingresa el nombre del estudiante.' };
+  }
+
+  try {
+    const adminPb = await createAdministrativeClient(pb);
+    const duplicateFilter = buildExternalSiuStudentDuplicateFilter(adminPb, { email, dni, enrollmentId });
+
+    if (duplicateFilter) {
+      const existingUsers = await adminPb.collection('users').getFullList({
+        filter: `role = "estudiante" && (${duplicateFilter})`,
+        fields: 'id',
+      });
+
+      if (existingUsers.length > 0) {
+        return { success: false, error: 'Ya existe un usuario estudiante con esos datos.' };
+      }
+
+      const existingExternalStudents = await adminPb.collection('external_siu_students').getFullList({
+        filter: duplicateFilter,
+        fields: 'id',
+      });
+
+      if (existingExternalStudents.length > 0) {
+        return { success: false, error: 'Ese inscripto SIU ya fue cargado como externo.' };
+      }
+    }
+
+    await adminPb.collection('external_siu_students').create({
+      fullName,
+      ...(email ? { email } : {}),
+      ...(dni ? { dni } : {}),
+      ...(enrollmentId ? { enrollmentId } : {}),
+      ...(notes ? { notes } : {}),
+      ...(user?.id ? { createdBy: user.id } : {}),
+    });
+
+    revalidatePath('/resultados-cursada');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to create external SIU student:', error);
+    return { success: false, error: 'No se pudo cargar el inscripto SIU externo. Verifica que la coleccion exista.' };
+  }
+}
+
+export async function deleteExternalSiuStudent(formData: FormData) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { role?: unknown } | null;
+
+  if (!isTeacherRole(user?.role)) {
+    return { success: false, error: 'Solo los docentes pueden quitar inscriptos SIU externos.' };
+  }
+
+  const externalStudentId = normalizeOptionalText(formData.get('externalStudentId'));
+  if (!externalStudentId) {
+    return { success: false, error: 'Falta el identificador del inscripto SIU externo.' };
+  }
+
+  try {
+    const adminPb = await createAdministrativeClient(pb);
+    await adminPb.collection('external_siu_students').delete(externalStudentId);
+
+    revalidatePath('/resultados-cursada');
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to delete external SIU student:', error);
+    return { success: false, error: 'No se pudo quitar el inscripto SIU externo.' };
+  }
+}
+
+async function getRecordsForDeletion(pb: PocketBase, collection: string, filter: string, fields = 'id') {
+  try {
+    return await pb.collection(collection).getFullList({
+      filter,
+      fields,
+    });
+  } catch (error) {
+    const responseError = error as { status?: number };
+    if (responseError.status === 404) {
+      return [];
+    }
+    throw error;
+  }
+}
+
+async function deleteRecordsByFilter(pb: PocketBase, collection: string, filter: string) {
+  const records = await getRecordsForDeletion(pb, collection, filter);
+
+  for (const record of records) {
+    await pb.collection(collection).delete(record.id);
+  }
+
+  return records.length;
+}
+
+async function updateRecordsByFilter(pb: PocketBase, collection: string, filter: string, data: Record<string, unknown>) {
+  const records = await getRecordsForDeletion(pb, collection, filter);
+
+  for (const record of records) {
+    await pb.collection(collection).update(record.id, data);
+  }
+
+  return records.length;
+}
+
+function buildIdFilter(pb: PocketBase, field: string, ids: string[]) {
+  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+  if (uniqueIds.length === 0) return '';
+
+  return uniqueIds.map((id) => pb.filter(`${field} = {:id}`, { id })).join(' || ');
+}
+
+export async function deleteStudentCourseData(studentId: string) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { role?: unknown } | null;
+
+  if (!isTeacherRole(user?.role)) {
+    return { success: false, error: 'Solo los docentes pueden eliminar estudiantes.' };
+  }
+
+  try {
+    const dataPb = await createAdministrativeClient(pb);
+    const student = await dataPb.collection('users').getOne(studentId, {
+      fields: 'id,role,name,email',
+    });
+
+    if (student.role !== 'estudiante') {
+      return { success: false, error: 'Solo se pueden eliminar usuarios estudiantes desde esta pantalla.' };
+    }
+
+    const deletedCounts: Record<string, number> = {};
+    const studentFilter = dataPb.filter('student = {:studentId}', { studentId });
+    const authorFilter = dataPb.filter('author = {:studentId}', { studentId });
+    const reservedByFilter = dataPb.filter('reservedBy = {:studentId}', { studentId });
+    const submittedByFilter = dataPb.filter('submittedBy = {:studentId}', { studentId });
+    const resolvedByFilter = dataPb.filter('resolvedBy = {:studentId}', { studentId });
+    const evaluatedByFilter = dataPb.filter('evaluatedBy = {:studentId}', { studentId });
+
+    const deliveries = await getRecordsForDeletion(dataPb, 'deliveries', studentFilter, 'id');
+    const deliveryFilter = buildIdFilter(dataPb, 'delivery', deliveries.map((delivery) => delivery.id));
+    if (deliveryFilter) {
+      deletedCounts.deliveryFeedbacksForDeliveries = await deleteRecordsByFilter(dataPb, 'delivery_feedbacks', deliveryFilter);
+    }
+    deletedCounts.deliveryFeedbacks = await deleteRecordsByFilter(dataPb, 'delivery_feedbacks', studentFilter);
+    deletedCounts.deliveries = 0;
+    for (const delivery of deliveries) {
+      await dataPb.collection('deliveries').delete(delivery.id);
+      deletedCounts.deliveries += 1;
+    }
+
+    deletedCounts.partialExamAttempts = await deleteRecordsByFilter(dataPb, 'partial_exam_attempts', studentFilter);
+    deletedCounts.partialExamSimulations = await deleteRecordsByFilter(dataPb, 'partial_exam_simulations', studentFilter);
+    deletedCounts.teamValidationResponses = await deleteRecordsByFilter(dataPb, 'team_validation_responses', studentFilter);
+    deletedCounts.teamValidationResponsesUpdated = await updateRecordsByFilter(dataPb, 'team_validation_responses', resolvedByFilter, {
+      resolvedBy: null,
+    });
+    deletedCounts.teamMemberships = await deleteRecordsByFilter(dataPb, 'team_members', studentFilter);
+    deletedCounts.finalProjectMemberEvaluations = await deleteRecordsByFilter(dataPb, 'final_project_member_evaluations', studentFilter);
+    deletedCounts.finalProjectMemberEvaluationsByEvaluator = await deleteRecordsByFilter(
+      dataPb,
+      'final_project_member_evaluations',
+      evaluatedByFilter,
+    );
+
+    const inquiryResponses = await getRecordsForDeletion(dataPb, 'inquiry_responses', authorFilter, 'id');
+    deletedCounts.inquiryResponses = 0;
+    for (const response of inquiryResponses) {
+      await dataPb.collection('inquiry_responses').delete(response.id);
+      deletedCounts.inquiryResponses += 1;
+    }
+
+    const inquiries = await getRecordsForDeletion(dataPb, 'inquiries', authorFilter, 'id');
+    const inquiryFilter = buildIdFilter(dataPb, 'inquiry', inquiries.map((inquiry) => inquiry.id));
+    if (inquiryFilter) {
+      deletedCounts.inquiryResponsesForInquiries = await deleteRecordsByFilter(dataPb, 'inquiry_responses', inquiryFilter);
+    }
+    deletedCounts.inquiries = 0;
+    for (const inquiry of inquiries) {
+      await dataPb.collection('inquiries').delete(inquiry.id);
+      deletedCounts.inquiries += 1;
+    }
+
+    deletedCounts.finalProjectSlotReservations = await deleteRecordsByFilter(dataPb, 'final_project_slot_reservations', reservedByFilter);
+    deletedCounts.finalProjectLegacySlots = await updateRecordsByFilter(dataPb, 'final_project_presentation_slots', reservedByFilter, {
+      team: null,
+      reservedBy: null,
+      reservedAt: null,
+    });
+    deletedCounts.finalProjectTeamResourcesUpdated = await updateRecordsByFilter(dataPb, 'final_project_team_resources', submittedByFilter, {
+      submittedBy: null,
+    });
+
+    await dataPb.collection('users').delete(studentId);
+
+    revalidateTag('users', 'max');
+    revalidatePath('/');
+    revalidatePath('/students');
+    revalidatePath('/course-dashboard');
+    revalidatePath('/equipos');
+    revalidatePath('/mi-equipo');
+    revalidatePath('/proyecto-final');
+    revalidatePath('/parciales');
+    revalidatePath('/inquiries');
+    revalidatePath('/equivalencias-diplomatura');
+
+    return { success: true, deletedCounts };
+  } catch (error) {
+    console.error('Failed to delete student course data:', error);
+    return { success: false, error: 'No se pudo eliminar el estudiante y su informacion de cursada.' };
   }
 }
 

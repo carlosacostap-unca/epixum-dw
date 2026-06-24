@@ -1,3 +1,4 @@
+import DeleteStudentButton from "@/components/DeleteStudentButton";
 import StudentSiuEnrollmentCheckbox from "@/components/StudentSiuEnrollmentCheckbox";
 import { getStudents, getTeamMembers, getTeams } from "@/lib/data";
 import { getCurrentUser } from "@/lib/pocketbase-server";
@@ -38,6 +39,7 @@ export default async function StudentsPage() {
                 <th className="px-6 py-4">Inscripto SIU</th>
                 <th className="px-6 py-4">Equipo</th>
                 <th className="px-6 py-4">Diseno Web</th>
+                <th className="px-6 py-4">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
@@ -84,11 +86,17 @@ export default async function StudentsPage() {
                       </span>
                     )}
                   </td>
+                  <td className="relative z-20 px-6 py-4">
+                    <DeleteStudentButton
+                      studentId={student.id}
+                      studentName={student.name || student.email}
+                    />
+                  </td>
                 </tr>
               ))}
               {students.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-8 text-center text-zinc-500">
+                  <td colSpan={8} className="px-6 py-8 text-center text-zinc-500">
                     No hay estudiantes registrados en el curso.
                   </td>
                 </tr>

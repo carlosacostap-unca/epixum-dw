@@ -26,6 +26,18 @@ export interface User extends BaseModel {
   role: UserRole;
 }
 
+export interface ExternalSiuStudent extends BaseModel {
+  fullName: string;
+  email?: string;
+  dni?: string;
+  enrollmentId?: string;
+  notes?: string;
+  createdBy?: string;
+  expand?: {
+    createdBy?: User;
+  };
+}
+
 export interface Team extends BaseModel {
   name: string;
   description?: string;

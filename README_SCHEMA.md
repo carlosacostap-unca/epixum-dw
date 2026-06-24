@@ -23,6 +23,19 @@ Para que la aplicación funcione correctamente, necesitas crear las siguientes c
 - **webDesignModuleEquivalenceStatus**: Select (options: "confirmed", "doubtful", "dismissed"). Estado de revision docente para la equivalencia; si esta vacio, la aplicacion lo trata como "doubtful".
   - Esto permitirá identificar los permisos de cada usuario.
 
+### External SIU Students Collection (`external_siu_students`)
+
+Registros de estudiantes inscriptos en SIU que todavia no tienen usuario en la plataforma. Se muestran en Resultados de Cursada como "SIU sin usuario" y se consideran libres.
+
+- **fullName**: Text (Required)
+- **email**: Text
+- **dni**: Text
+- **enrollmentId**: Text
+- **notes**: Text
+- **createdBy**: Relation to users
+- **List/View/Create/Update/Delete Rule**: `@request.auth.role = "docente" || @request.auth.role = "admin"`
+- **Script**: `npm run schema:external-siu`
+
 ### API Rules (Reglas de Acceso)
 
 Para que el rol "Docente" pueda gestionar el contenido, debes configurar las siguientes reglas en PocketBase:

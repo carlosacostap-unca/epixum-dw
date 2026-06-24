@@ -20,6 +20,7 @@ import {
   Team,
   TeamMember,
   TeamValidationResponse,
+  ExternalSiuStudent,
 } from '@/types';
 import { getPartialExamAvailability } from './partial-exam-availability';
 import { normalizeRelationIds, PARTIAL_EXAM_QUESTION_COUNT } from './partial-exam-rules';
@@ -137,6 +138,25 @@ export async function getTeamValidationResponses() {
     });
 }
 
+export async function getExternalSiuStudents() {
+    const pb = await createAdministrativeReadClient();
+
+    try {
+        return await pb.collection('external_siu_students').getFullList<ExternalSiuStudent>({
+            sort: 'fullName',
+            expand: 'createdBy',
+        });
+    } catch (error) {
+        const responseError = error as { status?: number };
+        if (responseError.status === 404) {
+            return [];
+        }
+
+        console.error('Error fetching external SIU students:', error);
+        return [];
+    }
+}
+
 export async function getTeamOverview() {
     const pb = await createAdministrativeReadClient();
 
@@ -227,6 +247,25 @@ export async function getFinalProjectMemberEvaluations(slotId?: string) {
             sort: 'student',
         });
     } catch (error) {
+        console.error('Error fetching final project member evaluations:', error);
+        return [];
+    }
+}
+
+export async function getAllFinalProjectMemberEvaluations() {
+    const pb = await createAdministrativeReadClient();
+
+    try {
+        return await pb.collection('final_project_member_evaluations').getFullList<FinalProjectMemberEvaluation>({
+            expand: 'student,evaluatedBy,slot,team',
+            sort: '-evaluatedAt',
+        });
+    } catch (error) {
+        const responseError = error as { status?: number };
+        if (responseError.status === 404) {
+            return [];
+        }
+
         console.error('Error fetching final project member evaluations:', error);
         return [];
     }
