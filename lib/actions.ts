@@ -2347,6 +2347,24 @@ export async function deleteLink(linkId: string, parentId?: string, parentType?:
 
 // Deliveries
 
+function buildLateDeliveryMetadata(
+  status: string | undefined,
+  limitDate: Date | null,
+  now = new Date(),
+) {
+  if (status !== 'submitted') {
+    return {};
+  }
+
+  const submittedLate = Boolean(limitDate && limitDate < now);
+
+  return {
+    submittedLate,
+    submittedLateAt: submittedLate ? now.toISOString() : '',
+    deliveryLimitAt: limitDate ? limitDate.toISOString() : '',
+  };
+}
+
 export async function createDelivery(formData: FormData) {
   const pb = await createServerClient();
   const user = pb.authStore.model;
@@ -2364,13 +2382,14 @@ export async function createDelivery(formData: FormData) {
      return { success: false, error: 'Assignment ID is required' };
   }
 
+  let lateDeliveryMetadata: Record<string, unknown> = {};
+
   // Check assignment due date on the server
   try {
     const assignment = await pb.collection('assignments').getOne(assignmentId);
     const isSpecialStudent = user.email === 'carlosacostap@sfvc.edu.ar';
-    if (!isSpecialStudent && status === 'submitted' && assignment.dueDate && new Date(assignment.dueDate) < new Date()) {
-      return { success: false, error: 'La fecha límite para este trabajo práctico ha pasado.' };
-    }
+    const limitDate = assignment.dueDate ? new Date(assignment.dueDate) : null;
+    lateDeliveryMetadata = isSpecialStudent ? {} : buildLateDeliveryMetadata(status, limitDate);
   } catch (error) {
     return { success: false, error: 'Assignment not found' };
   }
@@ -2387,6 +2406,7 @@ export async function createDelivery(formData: FormData) {
       assignment: assignmentId,
       student: user.id,
       status,
+      ...lateDeliveryMetadata,
     };
     
     if (repositoryUrl) data.repositoryUrl = repositoryUrl;
@@ -2451,6 +2471,7 @@ async function updateDeliveryLegacy(deliveryId: string, formData: FormData) {
   // although PocketBase API rules should handle this, it's good to be explicit or just try/catch
   let currentDelivery;
   let latestFeedback: any = null;
+  let lateDeliveryMetadata: Record<string, unknown> = {};
   try {
     currentDelivery = await pb.collection('deliveries').getOne(deliveryId, { expand: 'assignment' });
     try {
@@ -2513,9 +2534,7 @@ async function updateDeliveryLegacy(deliveryId: string, formData: FormData) {
       });
       
       const isSpecialStudent = user.email === 'carlosacostap@sfvc.edu.ar';
-      if (!isSpecialStudent && status === 'submitted' && limitDate && limitDate < new Date()) {
-        return { success: false, error: 'La fecha límite para este trabajo práctico ha pasado.' };
-      }
+      lateDeliveryMetadata = isSpecialStudent ? {} : buildLateDeliveryMetadata(status, limitDate);
     }
   } catch (error) {
     return { success: false, error: 'Delivery not found' };
@@ -2605,6 +2624,7 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
 
   let currentDelivery;
   let latestFeedback: any = null;
+  let lateDeliveryMetadata: Record<string, unknown> = {};
 
   try {
     currentDelivery = await pb.collection('deliveries').getOne(deliveryId, { expand: 'assignment' });
@@ -2647,9 +2667,7 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
       });
 
       const isSpecialStudent = user.email === 'carlosacostap@sfvc.edu.ar';
-      if (!isSpecialStudent && status === 'submitted' && limitDate && limitDate < new Date()) {
-        return { success: false, error: 'La fecha limite para este trabajo practico ha pasado.' };
-      }
+      lateDeliveryMetadata = isSpecialStudent ? {} : buildLateDeliveryMetadata(status, limitDate);
     }
   } catch {
     return { success: false, error: 'Delivery not found' };
@@ -2663,6 +2681,7 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
     const data: any = {};
     if (repositoryUrl) data.repositoryUrl = repositoryUrl;
     if (status) data.status = status;
+    Object.assign(data, lateDeliveryMetadata);
     if (contentStr) {
       try {
         data.content = JSON.parse(contentStr);
@@ -2676,6 +2695,7 @@ export async function updateDelivery(deliveryId: string, formData: FormData) {
         assignment: currentDelivery.assignment,
         student: user.id,
         status,
+        ...lateDeliveryMetadata,
         ...(repositoryUrl ? { repositoryUrl } : {}),
         ...(contentStr ? { content: data.content } : {}),
       });

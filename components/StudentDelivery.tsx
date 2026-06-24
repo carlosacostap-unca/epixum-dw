@@ -57,6 +57,8 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
   
   const limitDate = getDeliveryLimitDate(assignment, delivery);
   const isPastDue = isSpecialStudent ? false : (limitDate ? limitDate < new Date() : false);
+  const willSubmitLate = isPastDue;
+  const wasSubmittedLate = Boolean(delivery?.submittedLate);
 
   useEffect(() => {
     if (delivery?.content && assignment.type === 'questionnaire') {
@@ -476,6 +478,13 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
         </span>
       </div>
 
+      {wasSubmittedLate && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+          Entrega realizada con demora
+          {delivery?.submittedLateAt ? ` el ${new Date(delivery.submittedLateAt).toLocaleString()}` : ""}.
+        </div>
+      )}
+
       {delivery?.feedback && (
         <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-2">
@@ -572,9 +581,9 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
                         setIsEditing(true);
                     }
                 }}
-                disabled={isPastDue}
+                disabled={false}
                 className="shrink-0 px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 hover:text-zinc-900 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                title={isPastDue ? "La fecha límite ha pasado" : isGraded ? "Hacer una nueva entrega" : "Modificar entrega"}
+                title={willSubmitLate ? "Se registrara como entrega con demora" : isGraded ? "Hacer una nueva entrega" : "Modificar entrega"}
             >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                 {isGraded ? "Nueva Entrega" : "Modificar Entrega"}
@@ -584,10 +593,10 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
       ) : (
         <form onSubmit={(e) => handleSubmit(e, 'submitted')} className="bg-zinc-50 dark:bg-zinc-900/50 rounded-xl p-6 border border-zinc-200 dark:border-zinc-700">
           
-          {isPastDue && (
-            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-800 dark:text-red-300 flex items-center gap-3">
+          {willSubmitLate && (
+            <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-amber-800 dark:text-amber-300 flex items-center gap-3">
               <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              <p className="text-sm font-medium">La fecha límite para este trabajo práctico ha pasado. Ya no es posible realizar entregas ni modificaciones.</p>
+              <p className="text-sm font-medium">La fecha limite para este trabajo practico ya paso. Podes entregar, pero se registrara como entrega con demora.</p>
             </div>
           )}
 
@@ -603,9 +612,9 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
                     value={answers[q.id] || ''}
                     onChange={(e) => handleAnswerChange(q.id, e.target.value)}
                     rows={4}
-                    disabled={isPastDue}
+                    disabled={false}
                     className="w-full px-3 py-2 border border-zinc-300 dark:border-zinc-600 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 disabled:opacity-50 disabled:bg-zinc-100 dark:disabled:bg-zinc-900"
-                    placeholder={isPastDue ? "Entrega cerrada" : "Escribe tu respuesta aquí..."}
+                    placeholder={willSubmitLate ? "Escribe tu respuesta aqui. Se registrara con demora." : "Escribe tu respuesta aqui..."}
                   />
                 </div>
               ))}
@@ -632,14 +641,14 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
                 <button
                   type="button"
                   onClick={(e) => handleSubmit(e as any, 'draft')}
-                  disabled={loading || isPastDue}
+                  disabled={loading}
                   className="px-4 py-2 text-sm font-medium text-zinc-700 bg-white border border-zinc-300 rounded-lg hover:bg-zinc-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Guardar Borrador
                 </button>
                 <button
                   type="submit"
-                  disabled={loading || isPastDue}
+                  disabled={loading}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
@@ -669,19 +678,19 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
                   className={`relative border-2 border-dashed rounded-xl p-8 transition-all ${
                     isDragging 
                       ? "border-purple-500 bg-purple-50 dark:bg-purple-900/20" 
-                      : isPastDue 
-                        ? "border-red-300 bg-red-50/50 dark:border-red-800/50 dark:bg-red-900/10 cursor-not-allowed" 
+                      : willSubmitLate
+                        ? "border-amber-300 bg-amber-50/50 dark:border-amber-800/50 dark:bg-amber-900/10" 
                         : "border-zinc-300 dark:border-zinc-700 hover:border-purple-400 dark:hover:border-purple-500"
                   }`}
-                  onDragOver={isPastDue ? undefined : handleDragOver}
-                  onDragLeave={isPastDue ? undefined : handleDragLeave}
-                  onDrop={isPastDue ? undefined : handleDrop}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
                 >
                     <input
                       type="file"
                       id="project-folder"
                       ref={fileInputRef}
-                      disabled={isPastDue}
+                      disabled={false}
                       {...({ webkitdirectory: "", directory: "" } as any)}
                       className="hidden"
                       onChange={handleFileChange}
@@ -690,8 +699,8 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
                       <div className={`p-4 rounded-full ${
                         selectedFolderName 
                           ? "bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400" 
-                          : isPastDue
-                            ? "bg-red-100 text-red-400 dark:bg-red-900/30 dark:text-red-500"
+                          : willSubmitLate
+                            ? "bg-amber-100 text-amber-500 dark:bg-amber-900/30 dark:text-amber-400"
                             : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"
                       }`}>
                         {selectedFolderName ? (
@@ -704,7 +713,7 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
                       {selectedFolderName ? (
                         <div>
                             <p className="font-medium text-zinc-900 dark:text-zinc-100 mb-1">{selectedFolderName}</p>
-                            {!isPastDue && (
+                            {true && (
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -721,22 +730,16 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
                       ) : (
                         <>
                             <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                                {isPastDue ? (
-                                    "Entrega cerrada"
-                                ) : (
-                                    <>
-                                        <button
-                                            type="button"
-                                            onClick={() => fileInputRef.current?.click()}
-                                            className="font-semibold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:underline"
-                                        >
-                                            Selecciona una carpeta
-                                        </button>
-                                        {" "}o arrástrala aquí
-                                    </>
-                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className="font-semibold text-purple-600 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300 hover:underline"
+                                >
+                                    Selecciona una carpeta
+                                </button>
+                                {" "}o arrastrala aqui
                             </p>
-                            {!isPastDue && (
+                            {true && (
                                 <p className="text-xs text-zinc-500">
                                     Se comprimirá automáticamente en un archivo ZIP
                                 </p>
@@ -765,7 +768,7 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
                         )}
                         <button
                         type="submit"
-                        disabled={loading || isPastDue}
+                        disabled={loading}
                         className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                         {isDelivered ? "Actualizar Entrega" : "Entregar Tarea"}
@@ -781,3 +784,4 @@ export default function StudentDelivery({ assignmentId, delivery, studentName, a
     </div>
   );
 }
+

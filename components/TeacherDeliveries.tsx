@@ -178,6 +178,11 @@ export default function TeacherDeliveries({ deliveries, assignment }: TeacherDel
                         <div className="text-xs text-zinc-500 dark:text-zinc-400">
                             {new Date(delivery.created).toLocaleDateString()}
                         </div>
+                        {delivery.submittedLate && (
+                          <div className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+                            Entrega con demora
+                          </div>
+                        )}
                       </div>
                     </div>
                   </td>

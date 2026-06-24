@@ -42,6 +42,13 @@ Registros de estudiantes inscriptos en SIU que todavia no tienen usuario en la p
 
 Los campos de resultado final manual se aseguran para `users` y `external_siu_students` con `npm run schema:course-results`.
 
+### Deliveries Collection (`deliveries`)
+
+- **submittedLate**: Bool. Marca si la entrega final fue enviada despues del plazo limite.
+- **submittedLateAt**: Date. Fecha/hora en que se registro la entrega con demora.
+- **deliveryLimitAt**: Date. Plazo limite usado para determinar la demora.
+- **Script**: `npm run schema:delivery-late`
+
 ### API Rules (Reglas de Acceso)
 
 Para que el rol "Docente" pueda gestionar el contenido, debes configurar las siguientes reglas en PocketBase:
