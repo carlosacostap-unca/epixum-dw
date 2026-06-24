@@ -22,7 +22,7 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-type CourseResult = "Promociona" | "Regulariza" | "En carrera" | "Libre";
+type CourseResult = "Promocionado" | "Regularizado" | "Libre";
 type ResultSource = "platform" | "external-siu";
 
 type StudentCourseResult = {
@@ -39,7 +39,6 @@ type StudentCourseResult = {
   bestPartialExamGrade: number | null;
   approvedWebDesignModule: boolean;
   finalProjectEvaluation: FinalProjectMemberEvaluation | null;
-  finalGrade: number | null;
   notes?: string;
 };
 
@@ -48,9 +47,8 @@ const promotionGrade = 7;
 const passingGrade = 4;
 
 const resultStyles: Record<CourseResult, string> = {
-  Promociona: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-  Regulariza: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  "En carrera": "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+  Promocionado: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+  Regularizado: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
   Libre: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
 };
 
@@ -94,18 +92,6 @@ function formatGrade(value: number | null) {
   return value === null ? "Sin parcial" : value.toLocaleString("es-AR", { maximumFractionDigits: 1 });
 }
 
-function formatFinalGrade(value: number | null) {
-  return value === null ? "-" : value.toLocaleString("es-AR", { maximumFractionDigits: 1 });
-}
-
-function normalizeFinalGrade(value: number | null) {
-  if (value === null) {
-    return null;
-  }
-
-  return Math.min(10, Math.max(1, Math.round(value)));
-}
-
 function getLatestFinalProjectEvaluations(evaluations: FinalProjectMemberEvaluation[]) {
   const latestByStudent = new Map<string, FinalProjectMemberEvaluation>();
 
@@ -133,13 +119,13 @@ function formatFinalProjectEvaluation(evaluation: FinalProjectMemberEvaluation |
 
 function classifyPlatformStudent(student: User, approvedAssignments: number, bestPartialExamGrade: number | null): CourseResult {
   if (student.approvedWebDesignModule) {
-    return "Promociona";
+    return "Promocionado";
   }
 
   const hasRequiredAssignments = approvedAssignments >= requiredApprovedAssignments;
 
   if (hasRequiredAssignments && bestPartialExamGrade !== null && bestPartialExamGrade >= promotionGrade) {
-    return "Promociona";
+    return "Promocionado";
   }
 
   if (
@@ -148,22 +134,10 @@ function classifyPlatformStudent(student: User, approvedAssignments: number, bes
     bestPartialExamGrade >= passingGrade &&
     bestPartialExamGrade < promotionGrade
   ) {
-    return "Regulariza";
-  }
-
-  if (approvedAssignments > 0 || bestPartialExamGrade !== null) {
-    return "En carrera";
+    return "Regularizado";
   }
 
   return "Libre";
-}
-
-function getFinalGrade(student: User, bestPartialExamGrade: number | null) {
-  if (bestPartialExamGrade !== null) {
-    return normalizeFinalGrade(bestPartialExamGrade);
-  }
-
-  return student.approvedWebDesignModule ? 10 : null;
 }
 
 function hasMatchingPlatformStudent(externalStudent: ExternalSiuStudent, platformStudents: User[]) {
@@ -214,7 +188,6 @@ function buildPlatformStudentResults(
       bestPartialExamGrade,
       approvedWebDesignModule: Boolean(student.approvedWebDesignModule),
       finalProjectEvaluation: finalProjectEvaluationsByStudent.get(student.id) || null,
-      finalGrade: getFinalGrade(student, bestPartialExamGrade),
       result: classifyPlatformStudent(student, approvedAssignments, bestPartialExamGrade),
       source: "platform",
       detailHref: `/students/${student.id}`,
@@ -236,7 +209,6 @@ function buildExternalStudentResults(externalStudents: ExternalSiuStudent[], pla
       bestPartialExamGrade: null,
       approvedWebDesignModule: false,
       finalProjectEvaluation: null,
-      finalGrade: null,
       result: "Libre",
       source: "external-siu",
       notes: student.notes,
@@ -294,7 +266,7 @@ function StudentRows({ results }: { results: StudentCourseResult[] }) {
   if (results.length === 0) {
     return (
       <tr>
-        <td colSpan={10} className="px-5 py-8 text-center text-zinc-500 dark:text-zinc-400">
+        <td colSpan={8} className="px-5 py-8 text-center text-zinc-500 dark:text-zinc-400">
           No hay estudiantes en esta categoria.
         </td>
       </tr>
@@ -328,6 +300,7 @@ function StudentRows({ results }: { results: StudentCourseResult[] }) {
       <td className="relative px-5 py-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-zinc-950 dark:text-zinc-100">{formatGrade(result.bestPartialExamGrade)}</span>
+          <ResultBadge result={result.result} />
           {result.source === "external-siu" && (
             <form action={deleteExternalSiuStudentFormAction} className="relative z-20">
               <input type="hidden" name="externalStudentId" value={result.id} />
@@ -341,10 +314,6 @@ function StudentRows({ results }: { results: StudentCourseResult[] }) {
           )}
         </div>
       </td>
-      <td className="relative px-5 py-4">
-        <ResultBadge result={result.result} />
-      </td>
-      <td className="relative px-5 py-4 font-medium text-zinc-950 dark:text-zinc-100">{formatFinalGrade(result.finalGrade)}</td>
       <td className="relative px-5 py-4">{formatFinalProjectEvaluation(result.finalProjectEvaluation)}</td>
     </tr>
   ));
@@ -369,7 +338,7 @@ function ResultSection({
         <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{results.length} estudiantes</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1320px] text-left text-sm text-zinc-600 dark:text-zinc-300">
+        <table className="w-full min-w-[1040px] text-left text-sm text-zinc-600 dark:text-zinc-300">
           <thead className="bg-zinc-100 text-xs uppercase text-zinc-500 dark:bg-zinc-800/70 dark:text-zinc-400">
             <tr>
               <th className="px-5 py-3">Estudiante</th>
@@ -379,8 +348,6 @@ function ResultSection({
               <th className="px-5 py-3">TPs aprobados</th>
               <th className="px-5 py-3">Diseno Web</th>
               <th className="px-5 py-3">Mejor parcial</th>
-              <th className="px-5 py-3">Estado final</th>
-              <th className="px-5 py-3">Nota final</th>
               <th className="px-5 py-3">Evaluacion final</th>
             </tr>
           </thead>
@@ -424,7 +391,7 @@ export default async function ResultadosCursadaPage() {
 
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-6 dark:bg-zinc-950 sm:px-6 lg:px-8">
-      <div className="w-full">
+      <div className="mx-auto max-w-7xl">
         <div className="mb-6">
           <Link
             href="/"
