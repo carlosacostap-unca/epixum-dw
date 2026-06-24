@@ -8,6 +8,7 @@ export interface BaseModel {
 
 export type UserRole = 'admin' | 'docente' | 'docente_invitado' | 'estudiante';
 export type WebDesignModuleEquivalenceStatus = 'confirmed' | 'doubtful' | 'dismissed';
+export type FinalCourseStatus = 'Promociona' | 'Regulariza' | 'En carrera' | 'Libre';
 
 export interface User extends BaseModel {
   username: string;
@@ -22,6 +23,8 @@ export interface User extends BaseModel {
   enrolledInSiu?: boolean;
   approvedWebDesignModule?: boolean;
   webDesignModuleEquivalenceStatus?: WebDesignModuleEquivalenceStatus;
+  finalCourseStatus?: FinalCourseStatus;
+  finalCourseGrade?: number;
   avatar?: string;
   role: UserRole;
 }
@@ -31,6 +34,8 @@ export interface ExternalSiuStudent extends BaseModel {
   email?: string;
   dni?: string;
   enrollmentId?: string;
+  finalCourseStatus?: FinalCourseStatus;
+  finalCourseGrade?: number;
   notes?: string;
   createdBy?: string;
   expand?: {

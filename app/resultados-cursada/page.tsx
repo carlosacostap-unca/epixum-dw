@@ -1,3 +1,4 @@
+import FinalCourseResultControls from "@/components/FinalCourseResultControls";
 import ExternalSiuStudentForm from "@/components/ExternalSiuStudentForm";
 import { deleteExternalSiuStudent } from "@/lib/actions";
 import {
@@ -12,6 +13,7 @@ import { getCurrentUser } from "@/lib/pocketbase-server";
 import {
   Delivery,
   ExternalSiuStudent,
+  FinalCourseStatus,
   FinalProjectMemberEvaluation,
   FinalProjectMemberEvaluationRating,
   PartialExamSimulation,
@@ -22,7 +24,6 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-type CourseResult = "Promocionado" | "Regularizado" | "Libre";
 type ResultSource = "platform" | "external-siu";
 
 type StudentCourseResult = {
@@ -32,24 +33,15 @@ type StudentCourseResult = {
   dni?: string;
   enrollmentId?: string;
   enrolledInSiu: boolean;
-  result: CourseResult;
   source: ResultSource;
   detailHref?: string;
   approvedAssignments: number;
   bestPartialExamGrade: number | null;
   approvedWebDesignModule: boolean;
   finalProjectEvaluation: FinalProjectMemberEvaluation | null;
+  finalCourseStatus?: FinalCourseStatus;
+  finalCourseGrade?: number;
   notes?: string;
-};
-
-const requiredApprovedAssignments = 9;
-const promotionGrade = 7;
-const passingGrade = 4;
-
-const resultStyles: Record<CourseResult, string> = {
-  Promocionado: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-  Regularizado: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-  Libre: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
 };
 
 const finalProjectRatingLabels: Record<FinalProjectMemberEvaluationRating, string> = {
@@ -117,29 +109,6 @@ function formatFinalProjectEvaluation(evaluation: FinalProjectMemberEvaluation |
   return `${rating} · ${attendance} · ${exposure}`;
 }
 
-function classifyPlatformStudent(student: User, approvedAssignments: number, bestPartialExamGrade: number | null): CourseResult {
-  if (student.approvedWebDesignModule) {
-    return "Promocionado";
-  }
-
-  const hasRequiredAssignments = approvedAssignments >= requiredApprovedAssignments;
-
-  if (hasRequiredAssignments && bestPartialExamGrade !== null && bestPartialExamGrade >= promotionGrade) {
-    return "Promocionado";
-  }
-
-  if (
-    hasRequiredAssignments &&
-    bestPartialExamGrade !== null &&
-    bestPartialExamGrade >= passingGrade &&
-    bestPartialExamGrade < promotionGrade
-  ) {
-    return "Regularizado";
-  }
-
-  return "Libre";
-}
-
 function hasMatchingPlatformStudent(externalStudent: ExternalSiuStudent, platformStudents: User[]) {
   const externalEmail = normalizeMatchValue(externalStudent.email);
   const externalDni = normalizeMatchValue(externalStudent.dni);
@@ -188,7 +157,8 @@ function buildPlatformStudentResults(
       bestPartialExamGrade,
       approvedWebDesignModule: Boolean(student.approvedWebDesignModule),
       finalProjectEvaluation: finalProjectEvaluationsByStudent.get(student.id) || null,
-      result: classifyPlatformStudent(student, approvedAssignments, bestPartialExamGrade),
+      finalCourseStatus: student.finalCourseStatus,
+      finalCourseGrade: student.finalCourseGrade,
       source: "platform",
       detailHref: `/students/${student.id}`,
     };
@@ -209,7 +179,8 @@ function buildExternalStudentResults(externalStudents: ExternalSiuStudent[], pla
       bestPartialExamGrade: null,
       approvedWebDesignModule: false,
       finalProjectEvaluation: null,
-      result: "Libre",
+      finalCourseStatus: student.finalCourseStatus,
+      finalCourseGrade: student.finalCourseGrade,
       source: "external-siu",
       notes: student.notes,
     }));
@@ -219,10 +190,6 @@ function sortStudentResults(results: StudentCourseResult[]) {
   return [...results].sort((a, b) =>
     a.displayName.localeCompare(b.displayName, "es", { sensitivity: "base" }),
   );
-}
-
-function ResultBadge({ result }: { result: CourseResult }) {
-  return <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${resultStyles[result]}`}>{result}</span>;
 }
 
 function SourceBadge({ source }: { source: ResultSource }) {
@@ -266,7 +233,7 @@ function StudentRows({ results }: { results: StudentCourseResult[] }) {
   if (results.length === 0) {
     return (
       <tr>
-        <td colSpan={8} className="px-5 py-8 text-center text-zinc-500 dark:text-zinc-400">
+        <td colSpan={10} className="px-5 py-8 text-center text-zinc-500 dark:text-zinc-400">
           No hay estudiantes en esta categoria.
         </td>
       </tr>
@@ -293,14 +260,13 @@ function StudentRows({ results }: { results: StudentCourseResult[] }) {
       </td>
       <td className="relative px-5 py-4">{result.email || "-"}</td>
       <td className="relative px-5 py-4">{result.enrollmentId || "-"}</td>
-      <td className="relative px-5 py-4 font-medium text-zinc-950 dark:text-zinc-100">{result.approvedAssignments}</td>
       <td className="relative px-5 py-4">
         <WebDesignModuleBadge approved={result.approvedWebDesignModule} />
       </td>
+      <td className="relative px-5 py-4 font-medium text-zinc-950 dark:text-zinc-100">{result.approvedAssignments}</td>
       <td className="relative px-5 py-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium text-zinc-950 dark:text-zinc-100">{formatGrade(result.bestPartialExamGrade)}</span>
-          <ResultBadge result={result.result} />
           {result.source === "external-siu" && (
             <form action={deleteExternalSiuStudentFormAction} className="relative z-20">
               <input type="hidden" name="externalStudentId" value={result.id} />
@@ -315,6 +281,26 @@ function StudentRows({ results }: { results: StudentCourseResult[] }) {
         </div>
       </td>
       <td className="relative px-5 py-4">{formatFinalProjectEvaluation(result.finalProjectEvaluation)}</td>
+      <td className="relative px-5 py-4">
+        <FinalCourseResultControls
+          field="status"
+          source={result.source}
+          studentId={result.id}
+          studentName={result.displayName}
+          initialStatus={result.finalCourseStatus}
+          initialGrade={result.finalCourseGrade}
+        />
+      </td>
+      <td className="relative px-5 py-4">
+        <FinalCourseResultControls
+          field="grade"
+          source={result.source}
+          studentId={result.id}
+          studentName={result.displayName}
+          initialStatus={result.finalCourseStatus}
+          initialGrade={result.finalCourseGrade}
+        />
+      </td>
     </tr>
   ));
 }
@@ -338,17 +324,19 @@ function ResultSection({
         <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{results.length} estudiantes</span>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1040px] text-left text-sm text-zinc-600 dark:text-zinc-300">
+        <table className="w-full min-w-[1320px] text-left text-sm text-zinc-600 dark:text-zinc-300">
           <thead className="bg-zinc-100 text-xs uppercase text-zinc-500 dark:bg-zinc-800/70 dark:text-zinc-400">
             <tr>
               <th className="px-5 py-3">Estudiante</th>
               <th className="px-5 py-3">Origen</th>
               <th className="px-5 py-3">Email</th>
               <th className="px-5 py-3">Matricula</th>
+              <th className="px-5 py-3">Equiv. Diplom.</th>
               <th className="px-5 py-3">TPs aprobados</th>
-              <th className="px-5 py-3">Diseno Web</th>
               <th className="px-5 py-3">Mejor parcial</th>
-              <th className="px-5 py-3">Evaluacion final</th>
+              <th className="px-5 py-3">Coloquio</th>
+              <th className="px-5 py-3">Estado final</th>
+              <th className="px-5 py-3">Nota final</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -391,7 +379,7 @@ export default async function ResultadosCursadaPage() {
 
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-6 dark:bg-zinc-950 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
+      <div className="w-full">
         <div className="mb-6">
           <Link
             href="/"

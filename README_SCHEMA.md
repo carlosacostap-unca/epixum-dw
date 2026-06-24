@@ -20,6 +20,8 @@ Para que la aplicación funcione correctamente, necesitas crear las siguientes c
 - **phone**: Text
 - **enrolledInSiu**: Bool (revision docente: indica si el estudiante esta inscripto en SIU)
 - **approvedWebDesignModule**: Bool (declaracion del alumno: aprobo el modulo de diseno web en la diplomatura en desarrollo web fullstack con JavaScript)
+- **finalCourseStatus**: Select (options: "Promociona", "Regulariza", "En carrera", "Libre"). Estado final asignado manualmente por el docente en Resultados de Cursada.
+- **finalCourseGrade**: Number entero de 1 a 10. Nota final asignada manualmente por el docente en Resultados de Cursada.
 - **webDesignModuleEquivalenceStatus**: Select (options: "confirmed", "doubtful", "dismissed"). Estado de revision docente para la equivalencia; si esta vacio, la aplicacion lo trata como "doubtful".
   - Esto permitirá identificar los permisos de cada usuario.
 
@@ -31,10 +33,14 @@ Registros de estudiantes inscriptos en SIU que todavia no tienen usuario en la p
 - **email**: Text
 - **dni**: Text
 - **enrollmentId**: Text
+- **finalCourseStatus**: Select (options: "Promociona", "Regulariza", "En carrera", "Libre")
+- **finalCourseGrade**: Number entero de 1 a 10
 - **notes**: Text
 - **createdBy**: Relation to users
 - **List/View/Create/Update/Delete Rule**: `@request.auth.role = "docente" || @request.auth.role = "admin"`
 - **Script**: `npm run schema:external-siu`
+
+Los campos de resultado final manual se aseguran para `users` y `external_siu_students` con `npm run schema:course-results`.
 
 ### API Rules (Reglas de Acceso)
 

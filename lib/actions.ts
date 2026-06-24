@@ -22,6 +22,7 @@ import type {
   FinalProjectPresentationSlotReservation,
   TeamMember,
   TeamValidationStatus,
+  FinalCourseStatus,
   WebDesignModuleEquivalenceStatus,
 } from "@/types";
 import PocketBase from "pocketbase";
@@ -539,6 +540,74 @@ export async function deleteExternalSiuStudent(formData: FormData) {
   } catch (error) {
     console.error('Failed to delete external SIU student:', error);
     return { success: false, error: 'No se pudo quitar el inscripto SIU externo.' };
+  }
+}
+
+const finalCourseStatuses: FinalCourseStatus[] = ['Promociona', 'Regulariza', 'En carrera', 'Libre'];
+
+export async function updateFinalCourseResult(
+  source: 'platform' | 'external-siu',
+  studentId: string,
+  payload: {
+    finalCourseStatus?: FinalCourseStatus | '';
+    finalCourseGrade?: number | null;
+  },
+) {
+  const pb = await createServerClient();
+  const user = pb.authStore.model as { role?: unknown } | null;
+
+  if (!isTeacherRole(user?.role)) {
+    return { success: false, error: 'Solo los docentes pueden actualizar el resultado final.' };
+  }
+
+  const cleanStudentId = String(studentId || '').trim();
+  if (!cleanStudentId) {
+    return { success: false, error: 'Falta el estudiante a actualizar.' };
+  }
+
+  if (
+    payload.finalCourseStatus !== undefined &&
+    payload.finalCourseStatus &&
+    !finalCourseStatuses.includes(payload.finalCourseStatus)
+  ) {
+    return { success: false, error: 'El estado final seleccionado no es valido.' };
+  }
+
+  if (
+    payload.finalCourseGrade !== undefined &&
+    payload.finalCourseGrade !== null &&
+    (!Number.isInteger(payload.finalCourseGrade) || payload.finalCourseGrade < 1 || payload.finalCourseGrade > 10)
+  ) {
+    return { success: false, error: 'La nota final debe ser un numero entero del 1 al 10.' };
+  }
+
+  try {
+    const adminPb = await createAdministrativeClient(pb);
+    const collection = source === 'external-siu' ? 'external_siu_students' : 'users';
+
+    if (source === 'platform') {
+      const student = await adminPb.collection('users').getOne(cleanStudentId, {
+        fields: 'id,role',
+      });
+
+      if (student.role !== 'estudiante') {
+        return { success: false, error: 'El usuario seleccionado no es estudiante.' };
+      }
+    }
+
+    await adminPb.collection(collection).update(cleanStudentId, payload);
+
+    if (source === 'platform') {
+      revalidateTag('users', 'max');
+      revalidatePath('/students');
+      revalidatePath(`/students/${cleanStudentId}`);
+    }
+    revalidatePath('/resultados-cursada');
+
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to update final course result:', error);
+    return { success: false, error: 'No se pudo actualizar el resultado final.' };
   }
 }
 
