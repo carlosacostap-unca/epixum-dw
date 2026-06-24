@@ -25,6 +25,7 @@ import { redirect } from "next/navigation";
 export const dynamic = "force-dynamic";
 
 type ResultSource = "platform" | "external-siu";
+type ResultViewMode = "siu" | "estado-final";
 
 type StudentCourseResult = {
   id: string;
@@ -43,6 +44,8 @@ type StudentCourseResult = {
   finalCourseGrade?: number;
   notes?: string;
 };
+
+const finalCourseStatuses: FinalCourseStatus[] = ["Promociona", "Regulariza", "En carrera", "Libre"];
 
 const finalProjectRatingLabels: Record<FinalProjectMemberEvaluationRating, string> = {
   excellent: "Excelente",
@@ -192,6 +195,16 @@ function sortStudentResults(results: StudentCourseResult[]) {
   );
 }
 
+function getResultsByFinalStatus(results: StudentCourseResult[], status?: FinalCourseStatus) {
+  return results.filter((result) => {
+    if (!status) {
+      return !result.finalCourseStatus;
+    }
+
+    return result.finalCourseStatus === status;
+  });
+}
+
 function SourceBadge({ source }: { source: ResultSource }) {
   const styles = source === "platform"
     ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
@@ -225,6 +238,38 @@ function MetricCard({ label, value, detail, tone }: { label: string; value: stri
       </div>
       <p className="mt-3 text-3xl font-bold text-zinc-900 dark:text-zinc-100">{value}</p>
       <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{detail}</p>
+    </div>
+  );
+}
+
+function ResultViewSwitch({ activeView }: { activeView: ResultViewMode }) {
+  const options: { value: ResultViewMode; label: string; href: string }[] = [
+    { value: "siu", label: "Por SIU", href: "/resultados-cursada" },
+    { value: "estado-final", label: "Por estado final", href: "/resultados-cursada?vista=estado-final" },
+  ];
+
+  return (
+    <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Vista</h2>
+      <div className="inline-flex w-fit rounded-lg border border-zinc-200 bg-white p-1 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        {options.map((option) => {
+          const isActive = activeView === option.value;
+
+          return (
+            <Link
+              key={option.value}
+              href={option.href}
+              className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                isActive
+                  ? "bg-blue-600 text-white"
+                  : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+              }`}
+            >
+              {option.label}
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -348,11 +393,18 @@ function ResultSection({
   );
 }
 
-export default async function ResultadosCursadaPage() {
+export default async function ResultadosCursadaPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ vista?: string }>;
+}) {
   const currentUser = await getCurrentUser();
   if (!currentUser || (currentUser.role !== "docente" && currentUser.role !== "admin")) {
     redirect("/");
   }
+
+  const resolvedSearchParams = await searchParams;
+  const viewMode: ResultViewMode = resolvedSearchParams?.vista === "estado-final" ? "estado-final" : "siu";
 
   const [students, assignments, deliveries, partialExamSimulations, externalSiuStudents, finalProjectEvaluations] = await Promise.all([
     getStudents(),
@@ -376,6 +428,18 @@ export default async function ResultadosCursadaPage() {
   const siuStudents = studentResults.filter((result) => result.enrolledInSiu);
   const nonSiuStudents = studentResults.filter((result) => !result.enrolledInSiu);
   const externalSiuStudentCount = siuStudents.filter((result) => result.source === "external-siu").length;
+  const finalStatusSections = [
+    ...finalCourseStatuses.map((status) => ({
+      title: `Estado final: ${status}`,
+      description: `Estudiantes con estado final ${status}.`,
+      results: getResultsByFinalStatus(studentResults, status),
+    })),
+    {
+      title: "Estado final: Sin asignar",
+      description: "Estudiantes que todavia no tienen estado final cargado.",
+      results: getResultsByFinalStatus(studentResults),
+    },
+  ];
 
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-6 dark:bg-zinc-950 sm:px-6 lg:px-8">
@@ -405,18 +469,33 @@ export default async function ResultadosCursadaPage() {
           <MetricCard label="Usuarios plataforma" value={students.length} detail="Estudiantes registrados en la app" tone="bg-emerald-500" />
         </section>
 
-        <div className="grid gap-5">
-          <ResultSection
-            title="Alumnos inscriptos en el SIU"
-            description="Incluye usuarios estudiantes marcados como inscriptos y registros SIU sin usuario cargados manualmente."
-            results={siuStudents}
-          />
-          <ResultSection
-            title="Alumnos no inscriptos en el SIU"
-            description="Usuarios estudiantes de la plataforma que no tienen marcada la inscripcion en SIU."
-            results={nonSiuStudents}
-          />
-        </div>
+        <ResultViewSwitch activeView={viewMode} />
+
+        {viewMode === "siu" ? (
+          <div className="grid gap-5">
+            <ResultSection
+              title="Alumnos inscriptos en el SIU"
+              description="Incluye usuarios estudiantes marcados como inscriptos y registros SIU sin usuario cargados manualmente."
+              results={siuStudents}
+            />
+            <ResultSection
+              title="Alumnos no inscriptos en el SIU"
+              description="Usuarios estudiantes de la plataforma que no tienen marcada la inscripcion en SIU."
+              results={nonSiuStudents}
+            />
+          </div>
+        ) : (
+          <div className="grid gap-5">
+            {finalStatusSections.map((section) => (
+              <ResultSection
+                key={section.title}
+                title={section.title}
+                description={section.description}
+                results={section.results}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </main>
   );
