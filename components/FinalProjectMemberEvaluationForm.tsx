@@ -6,7 +6,8 @@ import {
   FinalProjectMemberEvaluationRating,
   User,
 } from "@/types";
-import { useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
 
 interface FinalProjectMemberEvaluationFormProps {
   slotId: string;
@@ -24,8 +25,45 @@ const ratingOptions: { value: FinalProjectMemberEvaluationRating; label: string 
   { value: "insufficient", label: "Insuficiente" },
 ];
 
+type EvaluationFormValues = Record<
+  string,
+  {
+    present: boolean;
+    exposed: boolean;
+    rating: FinalProjectMemberEvaluationRating | "";
+    notes: string;
+  }
+>;
+
 function formatStudentName(student: User) {
   return student.name || [student.firstName, student.lastName].filter(Boolean).join(" ") || student.email || "Sin nombre";
+}
+
+function buildInitialValues(
+  students: User[],
+  evaluations: FinalProjectMemberEvaluation[],
+  currentTeacherId: string,
+): EvaluationFormValues {
+  const evaluationByStudent = new Map(
+    evaluations
+      .filter((evaluation) => evaluation.evaluatedBy === currentTeacherId)
+      .map((evaluation) => [evaluation.student, evaluation]),
+  );
+
+  return Object.fromEntries(
+    students.map((student) => {
+      const evaluation = evaluationByStudent.get(student.id);
+      return [
+        student.id,
+        {
+          present: evaluation?.present ?? false,
+          exposed: evaluation?.exposed ?? false,
+          rating: evaluation?.rating || "",
+          notes: evaluation?.notes || "",
+        },
+      ];
+    }),
+  );
 }
 
 export default function FinalProjectMemberEvaluationForm({
@@ -35,9 +73,13 @@ export default function FinalProjectMemberEvaluationForm({
   evaluations,
   currentTeacherId,
 }: FinalProjectMemberEvaluationFormProps) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [values, setValues] = useState<EvaluationFormValues>(() =>
+    buildInitialValues(students, evaluations, currentTeacherId),
+  );
   const evaluationByStudent = useMemo(() => {
     return new Map(
       evaluations
@@ -45,6 +87,28 @@ export default function FinalProjectMemberEvaluationForm({
         .map((evaluation) => [evaluation.student, evaluation]),
     );
   }, [currentTeacherId, evaluations]);
+
+  useEffect(() => {
+    setValues(buildInitialValues(students, evaluations, currentTeacherId));
+  }, [currentTeacherId, evaluations, students]);
+
+  function updateStudentValue(
+    studentId: string,
+    nextValue: Partial<EvaluationFormValues[string]>,
+  ) {
+    setValues((currentValues) => ({
+      ...currentValues,
+      [studentId]: {
+        ...(currentValues[studentId] || {
+          present: false,
+          exposed: false,
+          rating: "",
+          notes: "",
+        }),
+        ...nextValue,
+      },
+    }));
+  }
 
   function handleSubmit(formData: FormData) {
     setMessage("");
@@ -54,6 +118,7 @@ export default function FinalProjectMemberEvaluationForm({
       const result = await saveFinalProjectMemberEvaluations(formData);
       if (result.success) {
         setMessage("Evaluación guardada.");
+        router.refresh();
       } else {
         setError(result.error || "No se pudo guardar la evaluación.");
       }
@@ -76,6 +141,12 @@ export default function FinalProjectMemberEvaluationForm({
 
           {students.map((student) => {
             const evaluation = evaluationByStudent.get(student.id);
+            const studentValues = values[student.id] || {
+              present: evaluation?.present ?? false,
+              exposed: evaluation?.exposed ?? false,
+              rating: evaluation?.rating || "",
+              notes: evaluation?.notes || "",
+            };
 
             return (
               <div
@@ -95,7 +166,8 @@ export default function FinalProjectMemberEvaluationForm({
                       <input
                         name={`present_${student.id}`}
                         type="checkbox"
-                        defaultChecked={evaluation?.present ?? false}
+                        checked={studentValues.present}
+                        onChange={(event) => updateStudentValue(student.id, { present: event.target.checked })}
                         className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
                       />
                       Presente
@@ -104,7 +176,8 @@ export default function FinalProjectMemberEvaluationForm({
                       <input
                         name={`exposed_${student.id}`}
                         type="checkbox"
-                        defaultChecked={evaluation?.exposed ?? false}
+                        checked={studentValues.exposed}
+                        onChange={(event) => updateStudentValue(student.id, { exposed: event.target.checked })}
                         className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
                       />
                       Expuso
@@ -117,7 +190,12 @@ export default function FinalProjectMemberEvaluationForm({
                     <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Evaluación</span>
                     <select
                       name={`rating_${student.id}`}
-                      defaultValue={evaluation?.rating || ""}
+                      value={studentValues.rating}
+                      onChange={(event) =>
+                        updateStudentValue(student.id, {
+                          rating: event.target.value as FinalProjectMemberEvaluationRating | "",
+                        })
+                      }
                       className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
                     >
                       <option value="">Sin evaluar todavía</option>
@@ -133,7 +211,8 @@ export default function FinalProjectMemberEvaluationForm({
                     <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Anotaciones</span>
                     <textarea
                       name={`notes_${student.id}`}
-                      defaultValue={evaluation?.notes || ""}
+                      value={studentValues.notes}
+                      onChange={(event) => updateStudentValue(student.id, { notes: event.target.value })}
                       rows={3}
                       placeholder="Observaciones sobre participación, defensa, dominio técnico o acuerdos pendientes."
                       className="mt-1 w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
