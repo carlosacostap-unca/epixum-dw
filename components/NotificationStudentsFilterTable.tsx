@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ReactNode, useMemo, useState } from "react";
 import { FinalCourseStatus } from "@/types";
 
@@ -34,6 +35,8 @@ type ColumnKey =
 
 type Filters = Partial<Record<ColumnKey, string[]>>;
 
+const emptyFilterValue = "__epixum_empty_filter__";
+
 const columns: { key: ColumnKey; label: string }[] = [
   { key: "name", label: "Alumno" },
   { key: "sourceLabel", label: "Origen" },
@@ -59,6 +62,50 @@ function getCellValue(row: NotificationStudentRow, key: ColumnKey) {
 function isFilterActive(filters: Filters, key: ColumnKey, allValues: string[]) {
   const selected = filters[key];
   return Boolean(selected && selected.length < allValues.length);
+}
+
+function getFilterParamName(key: ColumnKey) {
+  return `f_${key}`;
+}
+
+function getFiltersFromSearchParams(searchParams: URLSearchParams) {
+  return columns.reduce<Filters>((filters, column) => {
+    const values = searchParams.getAll(getFilterParamName(column.key));
+    if (values.length === 0) {
+      return filters;
+    }
+
+    filters[column.key] = values.includes(emptyFilterValue)
+      ? []
+      : values.filter((value) => value !== emptyFilterValue);
+    return filters;
+  }, {});
+}
+
+function getSearchStringWithFilters(searchParams: URLSearchParams, filters: Filters) {
+  const nextSearchParams = new URLSearchParams(searchParams.toString());
+
+  for (const column of columns) {
+    const paramName = getFilterParamName(column.key);
+    nextSearchParams.delete(paramName);
+
+    const values = filters[column.key];
+    if (!values) {
+      continue;
+    }
+
+    if (values.length === 0) {
+      nextSearchParams.append(paramName, emptyFilterValue);
+      continue;
+    }
+
+    for (const value of values) {
+      nextSearchParams.append(paramName, value);
+    }
+  }
+
+  const queryString = nextSearchParams.toString();
+  return queryString ? `?${queryString}` : "";
 }
 
 function Badge({ children, className }: { children: ReactNode; className: string }) {
@@ -118,12 +165,14 @@ function FilterMenu({
   values,
   selected,
   onApply,
+  onClear,
   onClose,
 }: {
   column: { key: ColumnKey; label: string };
   values: string[];
   selected?: string[];
   onApply: (values: string[]) => void;
+  onClear: () => void;
   onClose: () => void;
 }) {
   const [query, setQuery] = useState("");
@@ -186,7 +235,11 @@ function FilterMenu({
       <div className="mt-3 flex items-center justify-between gap-2">
         <button
           type="button"
-          onClick={() => setDraft(values)}
+          onClick={() => {
+            setDraft(values);
+            onClear();
+            onClose();
+          }}
           className="rounded-md px-3 py-1.5 text-sm font-semibold text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
         >
           Limpiar
@@ -207,7 +260,12 @@ function FilterMenu({
 }
 
 export default function NotificationStudentsFilterTable({ students }: { students: NotificationStudentRow[] }) {
-  const [filters, setFilters] = useState<Filters>({});
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [filters, setFilters] = useState<Filters>(() =>
+    getFiltersFromSearchParams(new URLSearchParams(searchParams.toString())),
+  );
   const [openColumn, setOpenColumn] = useState<ColumnKey | null>(null);
   const optionsByColumn = useMemo(() => {
     return columns.reduce<Record<ColumnKey, string[]>>((options, column) => {
@@ -234,17 +292,38 @@ export default function NotificationStudentsFilterTable({ students }: { students
 
   function applyFilter(key: ColumnKey, values: string[]) {
     const allValues = optionsByColumn[key] || [];
-    setFilters((current) => {
-      const next = { ...current };
-      if (values.length === 0) {
-        next[key] = [];
-      } else if (values.length === allValues.length) {
-        delete next[key];
-      } else {
-        next[key] = values;
-      }
-      return next;
-    });
+    const nextFilters = { ...filters };
+    if (values.length === 0) {
+      nextFilters[key] = [];
+    } else if (values.length === allValues.length) {
+      delete nextFilters[key];
+    } else {
+      nextFilters[key] = values;
+    }
+
+    setFilters(nextFilters);
+    router.replace(
+      `${pathname}${getSearchStringWithFilters(new URLSearchParams(searchParams.toString()), nextFilters)}`,
+      { scroll: false },
+    );
+  }
+
+  function clearFilters() {
+    setFilters({});
+    router.replace(
+      `${pathname}${getSearchStringWithFilters(new URLSearchParams(searchParams.toString()), {})}`,
+      { scroll: false },
+    );
+  }
+
+  function clearColumnFilter(key: ColumnKey) {
+    const nextFilters = { ...filters };
+    delete nextFilters[key];
+    setFilters(nextFilters);
+    router.replace(
+      `${pathname}${getSearchStringWithFilters(new URLSearchParams(searchParams.toString()), nextFilters)}`,
+      { scroll: false },
+    );
   }
 
   return (
@@ -259,7 +338,7 @@ export default function NotificationStudentsFilterTable({ students }: { students
         {activeFilterCount > 0 && (
           <button
             type="button"
-            onClick={() => setFilters({})}
+            onClick={clearFilters}
             className="w-fit rounded-lg border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
           >
             Limpiar filtros ({activeFilterCount})
@@ -268,6 +347,9 @@ export default function NotificationStudentsFilterTable({ students }: { students
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1200px] text-left text-sm text-zinc-600 dark:text-zinc-300">
+          <caption className="sr-only">
+            Listado de alumnos con filtros persistentes por columna.
+          </caption>
           <thead className="bg-zinc-100 text-xs uppercase text-zinc-500 dark:bg-zinc-800/70 dark:text-zinc-400">
             <tr>
               {columns.map((column) => {
@@ -297,6 +379,7 @@ export default function NotificationStudentsFilterTable({ students }: { students
                         values={values}
                         selected={filters[column.key]}
                         onApply={(nextValues) => applyFilter(column.key, nextValues)}
+                        onClear={() => clearColumnFilter(column.key)}
                         onClose={() => setOpenColumn(null)}
                       />
                     )}
