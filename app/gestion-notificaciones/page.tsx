@@ -1,6 +1,6 @@
-import { getExternalSiuStudents, getStudents } from "@/lib/data";
+import { getExternalSiuStudents, getFinalNotificationThreads, getStudents } from "@/lib/data";
 import { getCurrentUser } from "@/lib/pocketbase-server";
-import { ExternalSiuStudent, FinalCourseStatus, User } from "@/types";
+import { ExternalSiuStudent, FinalCourseStatus, FinalNotificationThread, User } from "@/types";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
@@ -14,6 +14,8 @@ type NotificationStudent = {
   href: string;
   finalCourseStatus?: FinalCourseStatus;
   finalCourseGrade?: number;
+  notificationThread?: FinalNotificationThread;
+  hasUnreadMessages: boolean;
 };
 
 const statusStyles: Record<FinalCourseStatus, string> = {
@@ -27,7 +29,24 @@ function getStudentName(student: User) {
   return student.name || [student.firstName, student.lastName].filter(Boolean).join(" ") || student.email;
 }
 
-function toPlatformNotificationStudent(student: User): NotificationStudent {
+function isTeacherUnread(thread?: FinalNotificationThread) {
+  if (!thread?.lastMessageAt) {
+    return false;
+  }
+
+  if (!thread.teacherReadAt) {
+    return true;
+  }
+
+  return new Date(thread.lastMessageAt).getTime() > new Date(thread.teacherReadAt).getTime();
+}
+
+function toPlatformNotificationStudent(
+  student: User,
+  threadsByStudent: Map<string, FinalNotificationThread>,
+): NotificationStudent {
+  const notificationThread = threadsByStudent.get(student.id);
+
   return {
     id: student.id,
     name: getStudentName(student),
@@ -36,6 +55,8 @@ function toPlatformNotificationStudent(student: User): NotificationStudent {
     href: `/gestion-notificaciones/platform/${student.id}`,
     finalCourseStatus: student.finalCourseStatus,
     finalCourseGrade: student.finalCourseGrade,
+    notificationThread,
+    hasUnreadMessages: isTeacherUnread(notificationThread),
   };
 }
 
@@ -48,6 +69,7 @@ function toExternalNotificationStudent(student: ExternalSiuStudent): Notificatio
     href: `/gestion-notificaciones/external-siu/${student.id}`,
     finalCourseStatus: student.finalCourseStatus,
     finalCourseGrade: student.finalCourseGrade,
+    hasUnreadMessages: false,
   };
 }
 
@@ -87,11 +109,43 @@ function SourceBadge({ source }: { source: NotificationStudent["source"] }) {
   );
 }
 
+function SentMessageBadge({ thread }: { thread?: FinalNotificationThread }) {
+  if (!thread) {
+    return (
+      <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+        Sin mensaje
+      </span>
+    );
+  }
+
+  return (
+    <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+      Enviado
+    </span>
+  );
+}
+
+function UnreadMessageBadge({ hasUnreadMessages }: { hasUnreadMessages: boolean }) {
+  if (!hasUnreadMessages) {
+    return (
+      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
+        Al dia
+      </span>
+    );
+  }
+
+  return (
+    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+      No leido
+    </span>
+  );
+}
+
 function NotificationRows({ students }: { students: NotificationStudent[] }) {
   if (students.length === 0) {
     return (
       <tr>
-        <td colSpan={5} className="px-5 py-8 text-center text-zinc-500 dark:text-zinc-400">
+        <td colSpan={7} className="px-5 py-8 text-center text-zinc-500 dark:text-zinc-400">
           No hay alumnos para mostrar.
         </td>
       </tr>
@@ -125,6 +179,16 @@ function NotificationRows({ students }: { students: NotificationStudent[] }) {
           {formatFinalGrade(student.finalCourseGrade)}
         </Link>
       </td>
+      <td className="px-0 py-0">
+        <Link href={student.href} className="block px-5 py-4">
+          <SentMessageBadge thread={student.notificationThread} />
+        </Link>
+      </td>
+      <td className="px-0 py-0">
+        <Link href={student.href} className="block px-5 py-4">
+          <UnreadMessageBadge hasUnreadMessages={student.hasUnreadMessages} />
+        </Link>
+      </td>
     </tr>
   ));
 }
@@ -135,16 +199,29 @@ export default async function GestionNotificacionesPage() {
     redirect("/");
   }
 
-  const [students, externalSiuStudents] = await Promise.all([
+  const [students, externalSiuStudents, notificationThreads] = await Promise.all([
     getStudents(),
     getExternalSiuStudents(),
+    getFinalNotificationThreads(),
   ]);
+  const threadsByStudent = new Map<string, FinalNotificationThread>();
+  for (const thread of notificationThreads) {
+    const current = threadsByStudent.get(thread.student);
+    const currentTime = current ? new Date(current.lastMessageAt || current.created).getTime() : 0;
+    const threadTime = new Date(thread.lastMessageAt || thread.created).getTime();
+
+    if (!current || threadTime > currentTime) {
+      threadsByStudent.set(thread.student, thread);
+    }
+  }
   const notificationStudents = [
-    ...students.map(toPlatformNotificationStudent),
+    ...students.map((student) => toPlatformNotificationStudent(student, threadsByStudent)),
     ...externalSiuStudents.map(toExternalNotificationStudent),
   ].sort((a, b) => a.name.localeCompare(b.name, "es", { sensitivity: "base" }));
   const assignedStatusCount = notificationStudents.filter((student) => student.finalCourseStatus).length;
   const assignedGradeCount = notificationStudents.filter((student) => typeof student.finalCourseGrade === "number").length;
+  const studentsWithMessageCount = notificationStudents.filter((student) => student.notificationThread).length;
+  const unreadMessageCount = notificationStudents.filter((student) => student.hasUnreadMessages).length;
 
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-6 dark:bg-zinc-950 sm:px-6 lg:px-8">
@@ -164,7 +241,7 @@ export default async function GestionNotificacionesPage() {
           </div>
         </div>
 
-        <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
             <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Total alumnos</p>
             <p className="mt-3 text-3xl font-bold text-zinc-950 dark:text-zinc-100">{notificationStudents.length}</p>
@@ -177,6 +254,14 @@ export default async function GestionNotificacionesPage() {
             <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Con nota final</p>
             <p className="mt-3 text-3xl font-bold text-zinc-950 dark:text-zinc-100">{assignedGradeCount}</p>
           </div>
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">Con mensaje</p>
+            <p className="mt-3 text-3xl font-bold text-zinc-950 dark:text-zinc-100">{studentsWithMessageCount}</p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No leidos</p>
+            <p className="mt-3 text-3xl font-bold text-zinc-950 dark:text-zinc-100">{unreadMessageCount}</p>
+          </div>
         </section>
 
         <section className="overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -184,7 +269,7 @@ export default async function GestionNotificacionesPage() {
             <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Alumnos</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[840px] text-left text-sm text-zinc-600 dark:text-zinc-300">
+            <table className="w-full min-w-[1120px] text-left text-sm text-zinc-600 dark:text-zinc-300">
               <thead className="bg-zinc-100 text-xs uppercase text-zinc-500 dark:bg-zinc-800/70 dark:text-zinc-400">
                 <tr>
                   <th className="px-5 py-3">Alumno</th>
@@ -192,6 +277,8 @@ export default async function GestionNotificacionesPage() {
                   <th className="px-5 py-3">Email</th>
                   <th className="px-5 py-3">Estado final</th>
                   <th className="px-5 py-3">Nota final</th>
+                  <th className="px-5 py-3">Mensaje enviado</th>
+                  <th className="px-5 py-3">No leidos</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">

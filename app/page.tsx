@@ -4,12 +4,14 @@ import {
     getAllAssignments,
     getPublishedStudentPartialExams,
     getStudentPartialExamResults,
+    getFinalNotificationThreadsForStudent,
 } from "@/lib/data";
 import { Class } from "@/types";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/pocketbase-server";
 import FormattedDate from "@/components/FormattedDate";
 import StudentGradesSummary from "@/components/StudentGradesSummary";
+import StudentFinalNotifications from "@/components/StudentFinalNotifications";
 import { isTeacherRole } from "@/lib/roles";
 
 export const dynamic = 'force-dynamic';
@@ -19,10 +21,11 @@ export default async function Home() {
 
   // 1. Student View (Navigation Cards)
   if (user && user.role === 'estudiante') {
-    const [userDeliveries, assignments, partialExams] = await Promise.all([
+    const [userDeliveries, assignments, partialExams, notificationThreads] = await Promise.all([
         getUserDeliveries(user.id),
         getAllAssignments(),
         getPublishedStudentPartialExams(),
+        getFinalNotificationThreadsForStudent(user.id),
     ]);
     const partialExamResults = await getStudentPartialExamResults(partialExams.map((partialExam) => partialExam.id));
 
@@ -42,6 +45,8 @@ export default async function Home() {
                 partialExamResults={partialExamResults}
                 userEmail={user.email}
             />
+
+            <StudentFinalNotifications threads={notificationThreads} />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto mt-12">
                 <Link href="/course-info" className="block p-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-purple-500 hover:shadow-md transition-all group">

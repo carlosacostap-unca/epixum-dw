@@ -21,6 +21,8 @@ import {
   TeamMember,
   TeamValidationResponse,
   ExternalSiuStudent,
+  FinalNotificationMessage,
+  FinalNotificationThread,
 } from '@/types';
 import { getPartialExamAvailability } from './partial-exam-availability';
 import { normalizeRelationIds, PARTIAL_EXAM_QUESTION_COUNT } from './partial-exam-rules';
@@ -153,6 +155,98 @@ export async function getExternalSiuStudents() {
         }
 
         console.error('Error fetching external SIU students:', error);
+        return [];
+    }
+}
+
+export async function getFinalNotificationThreadsForStudent(studentId?: string) {
+    if (!studentId) {
+        return [];
+    }
+
+    const pb = await createServerClient();
+
+    try {
+        const threads = await pb.collection('final_notification_threads').getFullList<FinalNotificationThread>({
+            filter: pb.filter('student = {:studentId}', { studentId }),
+            sort: '-lastMessageAt',
+            expand: 'student,createdBy',
+        });
+
+        return threads.sort((a, b) => {
+            const aTime = new Date(a.lastMessageAt || a.created).getTime();
+            const bTime = new Date(b.lastMessageAt || b.created).getTime();
+            return bTime - aTime;
+        });
+    } catch (error) {
+        const responseError = error as { status?: number };
+        if (responseError.status === 404) {
+            return [];
+        }
+
+        console.error('Error fetching final notification threads:', error);
+        return [];
+    }
+}
+
+export async function getFinalNotificationThreads() {
+    const pb = await createServerClient();
+
+    try {
+        const threads = await pb.collection('final_notification_threads').getFullList<FinalNotificationThread>({
+            sort: '-lastMessageAt',
+            expand: 'student,createdBy',
+        });
+
+        return threads.sort((a, b) => {
+            const aTime = new Date(a.lastMessageAt || a.created).getTime();
+            const bTime = new Date(b.lastMessageAt || b.created).getTime();
+            return bTime - aTime;
+        });
+    } catch (error) {
+        const responseError = error as { status?: number };
+        if (responseError.status === 404) {
+            return [];
+        }
+
+        console.error('Error fetching final notification threads:', error);
+        return [];
+    }
+}
+
+export async function getFinalNotificationThread(threadId: string) {
+    const pb = await createServerClient();
+
+    try {
+        return await pb.collection('final_notification_threads').getOne<FinalNotificationThread>(threadId, {
+            expand: 'student,createdBy',
+        });
+    } catch (error) {
+        const responseError = error as { status?: number };
+        if (responseError.status !== 404) {
+            console.error('Error fetching final notification thread:', error);
+        }
+        return null;
+    }
+}
+
+export async function getFinalNotificationMessages(threadId: string) {
+    const pb = await createServerClient();
+
+    try {
+        const messages = await pb.collection('final_notification_messages').getFullList<FinalNotificationMessage>({
+            filter: pb.filter('thread = {:threadId}', { threadId }),
+            expand: 'author,student',
+        });
+
+        return messages.sort((a, b) => new Date(a.created).getTime() - new Date(b.created).getTime());
+    } catch (error) {
+        const responseError = error as { status?: number };
+        if (responseError.status === 404) {
+            return [];
+        }
+
+        console.error('Error fetching final notification messages:', error);
         return [];
     }
 }

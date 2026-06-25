@@ -11,6 +11,7 @@
     "start": "next start",
     "mcp:pocketbase": "node tools/pocketbase-mcp/server.mjs",
     "schema:external-siu": "node scripts/ensure_external_siu_students_collection.mjs",
+    "schema:final-notifications": "node scripts/ensure_final_notifications_collection.mjs",
     "schema:course-results": "node scripts/ensure_final_course_result_fields.mjs",
     "schema:delivery-late": "node scripts/ensure_delivery_late_fields.mjs",
     "lint": "eslint"

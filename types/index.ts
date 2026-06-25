@@ -43,6 +43,34 @@ export interface ExternalSiuStudent extends BaseModel {
   };
 }
 
+export type FinalNotificationThreadStatus = 'open' | 'archived';
+
+export interface FinalNotificationThread extends BaseModel {
+  student: string;
+  subject: string;
+  status: FinalNotificationThreadStatus;
+  createdBy: string;
+  lastMessageAt?: string;
+  teacherReadAt?: string;
+  studentReadAt?: string;
+  expand?: {
+    student?: User;
+    createdBy?: User;
+  };
+}
+
+export interface FinalNotificationMessage extends BaseModel {
+  thread: string;
+  student: string;
+  author: string;
+  content: string;
+  expand?: {
+    thread?: FinalNotificationThread;
+    student?: User;
+    author?: User;
+  };
+}
+
 export interface Team extends BaseModel {
   name: string;
   description?: string;

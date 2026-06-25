@@ -1,10 +1,13 @@
 import StudentNotificationMessageComposer from "@/components/StudentNotificationMessageComposer";
+import FinalNotificationConversation from "@/components/FinalNotificationConversation";
 import {
   getAllAssignments,
   getAllDeliveries,
   getAllFinalProjectMemberEvaluations,
   getAllPartialExamSimulations,
   getExternalSiuStudents,
+  getFinalNotificationMessages,
+  getFinalNotificationThreadsForStudent,
   getStudents,
 } from "@/lib/data";
 import { getCurrentUser } from "@/lib/pocketbase-server";
@@ -19,6 +22,7 @@ import {
 } from "@/types";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -175,7 +179,7 @@ function StatusBadge({ status }: { status?: FinalCourseStatus }) {
   return <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[status]}`}>{status}</span>;
 }
 
-function DetailItem({ label, value }: { label: string; value: React.ReactNode }) {
+function DetailItem({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <p className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">{label}</p>
@@ -230,6 +234,10 @@ export default async function GestionNotificacionesDetallePage({
   const bestPartialExamGrade = detail.bestPartialExamGrade === null ? "Sin parcial" : formatPartialGrade(detail.bestPartialExamGrade);
   const finalCourseStatus = detail.finalCourseStatus || "Sin asignar";
   const finalCourseGrade = formatGrade(detail.finalCourseGrade);
+  const notificationThreads = detail.source === "platform" ? await getFinalNotificationThreadsForStudent(detail.id) : [];
+  const notificationThread = notificationThreads[0] || null;
+  const notificationMessages = notificationThread ? await getFinalNotificationMessages(notificationThread.id) : [];
+  const detailPath = `/gestion-notificaciones/${detail.source}/${detail.id}`;
 
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-6 dark:bg-zinc-950 sm:px-6 lg:px-8">
@@ -324,13 +332,21 @@ export default async function GestionNotificacionesDetallePage({
         </section>
 
         <StudentNotificationMessageComposer
+          studentId={detail.source === "platform" ? detail.id : undefined}
           studentName={detail.displayName}
-          studentEmail={detail.email}
           finalCourseStatus={finalCourseStatus}
           finalCourseGrade={finalCourseGrade}
           approvedAssignments={approvedAssignments}
           bestPartialExamGrade={bestPartialExamGrade}
           finalProjectEvaluation={finalProjectEvaluation}
+          returnPath={detailPath}
+        />
+
+        <FinalNotificationConversation
+          thread={notificationThread}
+          messages={notificationMessages}
+          currentUser={currentUser}
+          returnPath={detailPath}
         />
       </div>
     </main>

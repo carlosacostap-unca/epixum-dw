@@ -314,6 +314,42 @@ Para que el rol "Docente" pueda gestionar el contenido, debes configurar las sig
     - **Update**: `author = @request.auth.id || @request.auth.role = "docente" || @request.auth.role = "admin"`
     - **Delete**: `author = @request.auth.id || @request.auth.role = "docente" || @request.auth.role = "admin"`
 
+## 11. Coleccion: `final_notification_threads` (Hilos de notificaciones finales)
+- **Name**: `final_notification_threads`
+- **Type**: `Base`
+- **Fields**:
+    - `student`: Relation (Single, Required) -> Collection: `users`
+    - `subject`: Text (Required)
+    - `status`: Select (options: "open", "archived") (Required)
+    - `createdBy`: Relation (Single, Required) -> Collection: `users`
+    - `lastMessageAt`: Date (Optional)
+    - `teacherReadAt`: Date (Optional)
+    - `studentReadAt`: Date (Optional)
+- **API Rules**:
+    - **List/View**: `@request.auth.role = "docente" || @request.auth.role = "admin" || student = @request.auth.id`
+    - **Create**: `@request.auth.role = "docente" || @request.auth.role = "admin"`
+    - **Update**: `@request.auth.role = "docente" || @request.auth.role = "admin" || student = @request.auth.id`
+    - **Delete**: `@request.auth.role = "docente" || @request.auth.role = "admin"`
+- **Indexes**:
+    - `idx_final_notification_threads_student`
+    - `idx_final_notification_threads_lastMessageAt`
+
+## 12. Coleccion: `final_notification_messages` (Mensajes de notificaciones finales)
+- **Name**: `final_notification_messages`
+- **Type**: `Base`
+- **Fields**:
+    - `thread`: Relation (Single, Required) -> Collection: `final_notification_threads`
+    - `student`: Relation (Single, Required) -> Collection: `users`
+    - `author`: Relation (Single, Required) -> Collection: `users`
+    - `content`: Text (Required)
+- **API Rules**:
+    - **List/View/Create**: `@request.auth.role = "docente" || @request.auth.role = "admin" || (student = @request.auth.id && thread.student = @request.auth.id)`
+    - **Update**: disabled
+    - **Delete**: `@request.auth.role = "docente" || @request.auth.role = "admin"`
+- **Indexes**:
+    - `idx_final_notification_messages_thread`
+    - `idx_final_notification_messages_student`
+
 ## Datos de Ejemplo
 Una vez creadas las colecciones y configuradas las reglas, puedes añadir algunos registros de prueba:
 
