@@ -289,6 +289,11 @@ export default function NotificationStudentsFilterTable({ students }: { students
   const activeFilterCount = columns.filter((column) =>
     isFilterActive(filters, column.key, optionsByColumn[column.key] || []),
   ).length;
+  const currentListPath = `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+
+  function getStudentHref(student: NotificationStudentRow) {
+    return `${student.href}?returnTo=${encodeURIComponent(currentListPath)}`;
+  }
 
   function applyFilter(key: ColumnKey, values: string[]) {
     const allValues = optionsByColumn[key] || [];
@@ -399,42 +404,42 @@ export default function NotificationStudentsFilterTable({ students }: { students
               filteredStudents.map((student) => (
                 <tr key={`${student.source}-${student.id}`} className="group transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50">
                   <td className="px-0 py-0">
-                    <Link href={student.href} className="block px-5 py-4 font-medium text-zinc-950 group-hover:underline dark:text-zinc-100">
+                    <Link href={getStudentHref(student)} className="block px-5 py-4 font-medium text-zinc-950 group-hover:underline dark:text-zinc-100">
                       {student.name}
                     </Link>
                   </td>
                   <td className="px-0 py-0">
-                    <Link href={student.href} className="block px-5 py-4">
+                    <Link href={getStudentHref(student)} className="block px-5 py-4">
                       <SourceBadge source={student.source} />
                     </Link>
                   </td>
                   <td className="px-0 py-0">
-                    <Link href={student.href} className="block px-5 py-4">
+                    <Link href={getStudentHref(student)} className="block px-5 py-4">
                       {student.email}
                     </Link>
                   </td>
                   <td className="px-0 py-0">
-                    <Link href={student.href} className="block px-5 py-4">
+                    <Link href={getStudentHref(student)} className="block px-5 py-4">
                       <SiuEnrollmentBadge enrolled={student.enrolledInSiu} />
                     </Link>
                   </td>
                   <td className="px-0 py-0">
-                    <Link href={student.href} className="block px-5 py-4">
+                    <Link href={getStudentHref(student)} className="block px-5 py-4">
                       <StatusBadge status={student.finalCourseStatus} />
                     </Link>
                   </td>
                   <td className="px-0 py-0">
-                    <Link href={student.href} className="block px-5 py-4 font-medium text-zinc-950 dark:text-zinc-100">
+                    <Link href={getStudentHref(student)} className="block px-5 py-4 font-medium text-zinc-950 dark:text-zinc-100">
                       {student.finalCourseGradeLabel}
                     </Link>
                   </td>
                   <td className="px-0 py-0">
-                    <Link href={student.href} className="block px-5 py-4">
+                    <Link href={getStudentHref(student)} className="block px-5 py-4">
                       <SentMessageBadge sent={student.hasSentMessage} />
                     </Link>
                   </td>
                   <td className="px-0 py-0">
-                    <Link href={student.href} className="block px-5 py-4">
+                    <Link href={getStudentHref(student)} className="block px-5 py-4">
                       <UnreadMessageBadge unread={student.hasUnreadMessages} />
                     </Link>
                   </td>

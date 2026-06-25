@@ -188,10 +188,21 @@ function DetailItem({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
+function getNotificationListReturnPath(returnTo: string | string[] | undefined) {
+  const value = Array.isArray(returnTo) ? returnTo[0] : returnTo;
+  if (!value || !value.startsWith("/gestion-notificaciones") || value.startsWith("//") || value.includes("\n")) {
+    return "/gestion-notificaciones";
+  }
+
+  return value;
+}
+
 export default async function GestionNotificacionesDetallePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ source: string; id: string }>;
+  searchParams: Promise<{ returnTo?: string | string[] }>;
 }) {
   const currentUser = await getCurrentUser();
   if (!currentUser || (currentUser.role !== "docente" && currentUser.role !== "admin")) {
@@ -237,14 +248,18 @@ export default async function GestionNotificacionesDetallePage({
   const notificationThreads = detail.source === "platform" ? await getFinalNotificationThreadsForStudent(detail.id) : [];
   const notificationThread = notificationThreads[0] || null;
   const notificationMessages = notificationThread ? await getFinalNotificationMessages(notificationThread.id) : [];
-  const detailPath = `/gestion-notificaciones/${detail.source}/${detail.id}`;
+  const { returnTo } = await searchParams;
+  const listReturnPath = getNotificationListReturnPath(returnTo);
+  const detailPath = listReturnPath === "/gestion-notificaciones"
+    ? `/gestion-notificaciones/${detail.source}/${detail.id}`
+    : `/gestion-notificaciones/${detail.source}/${detail.id}?returnTo=${encodeURIComponent(listReturnPath)}`;
 
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-6 dark:bg-zinc-950 sm:px-6 lg:px-8">
       <div className="mx-auto grid w-full max-w-6xl gap-6">
         <div>
           <Link
-            href="/gestion-notificaciones"
+            href={listReturnPath}
             className="inline-flex items-center text-sm font-medium text-blue-600 transition-colors hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
           >
             Volver a gestión de notificaciones
