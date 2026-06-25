@@ -12,6 +12,7 @@ type NotificationStudent = {
   email?: string;
   source: "platform" | "external-siu";
   href: string;
+  enrolledInSiu: boolean;
   finalCourseStatus?: FinalCourseStatus;
   finalCourseGrade?: number;
   notificationThread?: FinalNotificationThread;
@@ -53,6 +54,7 @@ function toPlatformNotificationStudent(
     email: student.email,
     source: "platform",
     href: `/gestion-notificaciones/platform/${student.id}`,
+    enrolledInSiu: Boolean(student.enrolledInSiu),
     finalCourseStatus: student.finalCourseStatus,
     finalCourseGrade: student.finalCourseGrade,
     notificationThread,
@@ -67,6 +69,7 @@ function toExternalNotificationStudent(student: ExternalSiuStudent): Notificatio
     email: student.email,
     source: "external-siu",
     href: `/gestion-notificaciones/external-siu/${student.id}`,
+    enrolledInSiu: true,
     finalCourseStatus: student.finalCourseStatus,
     finalCourseGrade: student.finalCourseGrade,
     hasUnreadMessages: false,
@@ -109,6 +112,22 @@ function SourceBadge({ source }: { source: NotificationStudent["source"] }) {
   );
 }
 
+function SiuEnrollmentBadge({ enrolled }: { enrolled: boolean }) {
+  if (!enrolled) {
+    return (
+      <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+        No
+      </span>
+    );
+  }
+
+  return (
+    <span className="rounded-full bg-sky-100 px-2.5 py-1 text-xs font-medium text-sky-800 dark:bg-sky-900/30 dark:text-sky-300">
+      Si
+    </span>
+  );
+}
+
 function SentMessageBadge({ thread }: { thread?: FinalNotificationThread }) {
   if (!thread) {
     return (
@@ -145,7 +164,7 @@ function NotificationRows({ students }: { students: NotificationStudent[] }) {
   if (students.length === 0) {
     return (
       <tr>
-        <td colSpan={7} className="px-5 py-8 text-center text-zinc-500 dark:text-zinc-400">
+        <td colSpan={8} className="px-5 py-8 text-center text-zinc-500 dark:text-zinc-400">
           No hay alumnos para mostrar.
         </td>
       </tr>
@@ -167,6 +186,11 @@ function NotificationRows({ students }: { students: NotificationStudent[] }) {
       <td className="px-0 py-0">
         <Link href={student.href} className="block px-5 py-4">
           {student.email || "-"}
+        </Link>
+      </td>
+      <td className="px-0 py-0">
+        <Link href={student.href} className="block px-5 py-4">
+          <SiuEnrollmentBadge enrolled={student.enrolledInSiu} />
         </Link>
       </td>
       <td className="px-0 py-0">
@@ -269,12 +293,13 @@ export default async function GestionNotificacionesPage() {
             <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Alumnos</h2>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1120px] text-left text-sm text-zinc-600 dark:text-zinc-300">
+            <table className="w-full min-w-[1200px] text-left text-sm text-zinc-600 dark:text-zinc-300">
               <thead className="bg-zinc-100 text-xs uppercase text-zinc-500 dark:bg-zinc-800/70 dark:text-zinc-400">
                 <tr>
                   <th className="px-5 py-3">Alumno</th>
                   <th className="px-5 py-3">Origen</th>
                   <th className="px-5 py-3">Email</th>
+                  <th className="px-5 py-3">Inscripto SIU</th>
                   <th className="px-5 py-3">Estado final</th>
                   <th className="px-5 py-3">Nota final</th>
                   <th className="px-5 py-3">Mensaje enviado</th>
