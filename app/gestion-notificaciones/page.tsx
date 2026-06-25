@@ -248,8 +248,8 @@ export default async function GestionNotificacionesPage() {
   const unreadMessageCount = notificationStudents.filter((student) => student.hasUnreadMessages).length;
 
   return (
-    <main className="min-h-screen bg-zinc-50 px-4 py-6 dark:bg-zinc-950 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-6xl">
+    <main className="min-h-screen bg-zinc-50 px-4 py-6 dark:bg-zinc-950 sm:px-6 lg:px-8 2xl:px-10">
+      <div className="w-full">
         <div className="mb-6">
           <Link
             href="/"
