@@ -26,6 +26,19 @@ export const dynamic = "force-dynamic";
 
 type ResultSource = "platform" | "external-siu";
 type ResultViewMode = "siu" | "estado-final";
+type ResultSearchParams = {
+  vista?: string;
+  q?: string;
+  siu?: string;
+  origen?: string;
+  estado?: string;
+};
+type ResultFilters = {
+  query: string;
+  siu: "all" | "yes" | "no";
+  source: "all" | ResultSource;
+  finalStatus: "all" | FinalCourseStatus | "sin-asignar";
+};
 
 type StudentCourseResult = {
   id: string;
@@ -60,8 +73,94 @@ async function deleteExternalSiuStudentFormAction(formData: FormData) {
   await deleteExternalSiuStudent(formData);
 }
 
+function getSearchParamValue(value?: string | string[]) {
+  return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
 function normalizeMatchValue(value?: string) {
   return String(value || "").trim().toLowerCase();
+}
+
+function getResultFilters(searchParams?: ResultSearchParams): ResultFilters {
+  const siu = getSearchParamValue(searchParams?.siu);
+  const source = getSearchParamValue(searchParams?.origen);
+  const finalStatus = getSearchParamValue(searchParams?.estado);
+
+  return {
+    query: getSearchParamValue(searchParams?.q).trim(),
+    siu: siu === "yes" || siu === "no" ? siu : "all",
+    source: source === "platform" || source === "external-siu" ? source : "all",
+    finalStatus: finalStatus === "sin-asignar" || finalCourseStatuses.includes(finalStatus as FinalCourseStatus)
+      ? finalStatus as ResultFilters["finalStatus"]
+      : "all",
+  };
+}
+
+function hasActiveFilters(filters: ResultFilters) {
+  return Boolean(filters.query || filters.siu !== "all" || filters.source !== "all" || filters.finalStatus !== "all");
+}
+
+function matchesResultFilters(result: StudentCourseResult, filters: ResultFilters) {
+  const query = normalizeMatchValue(filters.query);
+  const queryMatches = !query || [
+    result.displayName,
+    result.email,
+    result.dni,
+    result.enrollmentId,
+    result.notes,
+  ].some((value) => normalizeMatchValue(value).includes(query));
+
+  if (!queryMatches) {
+    return false;
+  }
+
+  if (filters.siu === "yes" && !result.enrolledInSiu) {
+    return false;
+  }
+
+  if (filters.siu === "no" && result.enrolledInSiu) {
+    return false;
+  }
+
+  if (filters.source !== "all" && result.source !== filters.source) {
+    return false;
+  }
+
+  if (filters.finalStatus === "sin-asignar" && result.finalCourseStatus) {
+    return false;
+  }
+
+  if (filters.finalStatus !== "all" && filters.finalStatus !== "sin-asignar" && result.finalCourseStatus !== filters.finalStatus) {
+    return false;
+  }
+
+  return true;
+}
+
+function getResultViewHref(view: ResultViewMode, filters: ResultFilters) {
+  const params = new URLSearchParams();
+  if (view === "estado-final") {
+    params.set("vista", "estado-final");
+  }
+
+  if (filters.query) {
+    params.set("q", filters.query);
+  }
+
+  if (filters.siu !== "all") {
+    params.set("siu", filters.siu);
+  }
+
+  if (filters.source !== "all") {
+    params.set("origen", filters.source);
+  }
+
+  if (filters.finalStatus !== "all") {
+    params.set("estado", filters.finalStatus);
+  }
+
+  const queryString = params.toString();
+  return queryString ? `/resultados-cursada?${queryString}` : "/resultados-cursada";
 }
 
 function getStudentDisplayName(student: User) {
@@ -254,10 +353,101 @@ function SiuEnrollmentBadge({ enrolled }: { enrolled: boolean }) {
   );
 }
 
-function ResultViewSwitch({ activeView }: { activeView: ResultViewMode }) {
+function ResultFilterPanel({
+  activeView,
+  filters,
+  totalCount,
+  filteredCount,
+}: {
+  activeView: ResultViewMode;
+  filters: ResultFilters;
+  totalCount: number;
+  filteredCount: number;
+}) {
+  const hasFilters = hasActiveFilters(filters);
+
+  return (
+    <section className="mb-6 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-zinc-950 dark:text-zinc-100">Filtrar estudiantes</h2>
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            {filteredCount} de {totalCount} estudiantes visibles
+          </p>
+        </div>
+        {hasFilters && (
+          <Link
+            href={getResultViewHref(activeView, { query: "", siu: "all", source: "all", finalStatus: "all" })}
+            className="w-fit rounded-lg border border-zinc-300 px-3 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            Limpiar filtros
+          </Link>
+        )}
+      </div>
+      <form action="/resultados-cursada" className="grid gap-4 lg:grid-cols-[minmax(220px,1.4fr)_repeat(3,minmax(160px,1fr))_auto] lg:items-end">
+        {activeView === "estado-final" && <input type="hidden" name="vista" value="estado-final" />}
+        <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+          Buscar
+          <input
+            name="q"
+            defaultValue={filters.query}
+            placeholder="Nombre, email, DNI o matricula"
+            className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-950"
+          />
+        </label>
+        <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+          Inscripto SIU
+          <select
+            name="siu"
+            defaultValue={filters.siu}
+            className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-950"
+          >
+            <option value="all">Todos</option>
+            <option value="yes">Si</option>
+            <option value="no">No</option>
+          </select>
+        </label>
+        <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+          Origen
+          <select
+            name="origen"
+            defaultValue={filters.source}
+            className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-950"
+          >
+            <option value="all">Todos</option>
+            <option value="platform">Usuario plataforma</option>
+            <option value="external-siu">SIU sin usuario</option>
+          </select>
+        </label>
+        <label className="grid gap-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200">
+          Estado final
+          <select
+            name="estado"
+            defaultValue={filters.finalStatus}
+            className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-zinc-700 dark:bg-zinc-950"
+          >
+            <option value="all">Todos</option>
+            {finalCourseStatuses.map((status) => (
+              <option key={status} value={status}>{status}</option>
+            ))}
+            <option value="sin-asignar">Sin asignar</option>
+          </select>
+        </label>
+        <button
+          type="submit"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+        >
+          Filtrar
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function ResultViewSwitch({ activeView, filters }: { activeView: ResultViewMode; filters: ResultFilters }) {
   const options: { value: ResultViewMode; label: string; href: string }[] = [
-    { value: "siu", label: "Por SIU", href: "/resultados-cursada" },
-    { value: "estado-final", label: "Por estado final", href: "/resultados-cursada?vista=estado-final" },
+    { value: "siu", label: "Por SIU", href: getResultViewHref("siu", filters) },
+    { value: "estado-final", label: "Por estado final", href: getResultViewHref("estado-final", filters) },
   ];
 
   return (
@@ -412,7 +602,7 @@ function ResultSection({
 export default async function ResultadosCursadaPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ vista?: string }>;
+  searchParams?: Promise<ResultSearchParams>;
 }) {
   const currentUser = await getCurrentUser();
   if (!currentUser || (currentUser.role !== "docente" && currentUser.role !== "admin")) {
@@ -421,6 +611,7 @@ export default async function ResultadosCursadaPage({
 
   const resolvedSearchParams = await searchParams;
   const viewMode: ResultViewMode = resolvedSearchParams?.vista === "estado-final" ? "estado-final" : "siu";
+  const filters = getResultFilters(resolvedSearchParams);
 
   const [students, assignments, deliveries, partialExamSimulations, externalSiuStudents, finalProjectEvaluations] = await Promise.all([
     getStudents(),
@@ -441,19 +632,21 @@ export default async function ResultadosCursadaPage({
   );
   const externalResults = buildExternalStudentResults(externalSiuStudents, students);
   const studentResults = sortStudentResults([...platformResults, ...externalResults]);
-  const siuStudents = studentResults.filter((result) => result.enrolledInSiu);
-  const nonSiuStudents = studentResults.filter((result) => !result.enrolledInSiu);
-  const externalSiuStudentCount = siuStudents.filter((result) => result.source === "external-siu").length;
+  const filteredStudentResults = studentResults.filter((result) => matchesResultFilters(result, filters));
+  const siuStudents = filteredStudentResults.filter((result) => result.enrolledInSiu);
+  const nonSiuStudents = filteredStudentResults.filter((result) => !result.enrolledInSiu);
+  const totalSiuStudents = studentResults.filter((result) => result.enrolledInSiu);
+  const externalSiuStudentCount = totalSiuStudents.filter((result) => result.source === "external-siu").length;
   const finalStatusSections = [
     ...finalCourseStatuses.map((status) => ({
       title: `Estado final: ${status}`,
       description: `Estudiantes con estado final ${status}.`,
-      results: getResultsByFinalStatus(studentResults, status),
+      results: getResultsByFinalStatus(filteredStudentResults, status),
     })),
     {
       title: "Estado final: Sin asignar",
       description: "Estudiantes que todavia no tienen estado final cargado.",
-      results: getResultsByFinalStatus(studentResults),
+      results: getResultsByFinalStatus(filteredStudentResults),
     },
   ];
 
@@ -479,13 +672,20 @@ export default async function ResultadosCursadaPage({
 
         <section className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <MetricCard label="Total alumnos" value={studentResults.length} detail="Usuarios y registros SIU externos" tone="bg-zinc-500" />
-          <MetricCard label="Inscriptos SIU" value={siuStudents.length} detail="Con usuario o cargados como externos" tone="bg-sky-500" />
-          <MetricCard label="No inscriptos SIU" value={nonSiuStudents.length} detail="Usuarios estudiantes sin marca SIU" tone="bg-red-500" />
+          <MetricCard label="Inscriptos SIU" value={totalSiuStudents.length} detail="Con usuario o cargados como externos" tone="bg-sky-500" />
+          <MetricCard label="No inscriptos SIU" value={studentResults.length - totalSiuStudents.length} detail="Usuarios estudiantes sin marca SIU" tone="bg-red-500" />
           <MetricCard label="SIU sin usuario" value={externalSiuStudentCount} detail="Cargados manualmente como libres" tone="bg-amber-500" />
           <MetricCard label="Usuarios plataforma" value={students.length} detail="Estudiantes registrados en la app" tone="bg-emerald-500" />
         </section>
 
-        <ResultViewSwitch activeView={viewMode} />
+        <ResultFilterPanel
+          activeView={viewMode}
+          filters={filters}
+          totalCount={studentResults.length}
+          filteredCount={filteredStudentResults.length}
+        />
+
+        <ResultViewSwitch activeView={viewMode} filters={filters} />
 
         {viewMode === "siu" ? (
           <div className="grid gap-5">
