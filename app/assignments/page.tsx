@@ -1,14 +1,49 @@
-import { getAllAssignments } from "@/lib/data";
+import { getAllAssignments, getAllDeliveries } from "@/lib/data";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/pocketbase-server";
 import FormattedDate from "@/components/FormattedDate";
+import { Delivery } from "@/types";
 
 export const dynamic = 'force-dynamic';
 
+function getPendingReviewCountsByAssignment(deliveries: Delivery[]) {
+  const counts = new Map<string, number>();
+
+  for (const delivery of deliveries) {
+    if (delivery.status !== "submitted") {
+      continue;
+    }
+
+    counts.set(delivery.assignment, (counts.get(delivery.assignment) || 0) + 1);
+  }
+
+  return counts;
+}
+
+function PendingReviewBadge({ count }: { count: number }) {
+  const hasPendingReviews = count > 0;
+
+  return (
+    <span
+      className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-xs font-semibold ${
+        hasPendingReviews
+          ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
+          : "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+      }`}
+    >
+      {count} {count === 1 ? "entrega sin evaluar" : "entregas sin evaluar"}
+    </span>
+  );
+}
+
 export default async function AssignmentsPage() {
-  const assignments = await getAllAssignments();
-  const user = await getCurrentUser();
+  const [assignments, user] = await Promise.all([
+    getAllAssignments(),
+    getCurrentUser(),
+  ]);
   const isTeacher = user && (user.role === 'docente' || user.role === 'admin');
+  const deliveries = isTeacher ? await getAllDeliveries() : [];
+  const pendingReviewCountsByAssignment = getPendingReviewCountsByAssignment(deliveries);
 
   return (
     <div className="container mx-auto p-8 min-h-screen">
@@ -46,6 +81,11 @@ export default async function AssignmentsPage() {
                   <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                     {assignment.title}
                   </h2>
+                  {isTeacher && (
+                    <div className="mt-3">
+                      <PendingReviewBadge count={pendingReviewCountsByAssignment.get(assignment.id) || 0} />
+                    </div>
+                  )}
                   {assignment.dueDate && (
                       <div className="flex items-center gap-2 mt-2 text-sm text-zinc-500 dark:text-zinc-400">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
